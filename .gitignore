@@ -1,0 +1,10 @@
+test
+
+.terraform
+.graft
+.idea
+.terraform.lock.hcl
+terraform.tfstate
+
+_graft_add.tf
+_graft_override.tf

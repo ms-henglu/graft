@@ -1,0 +1,37 @@
+package main
+
+import (
+	"os"
+
+	"github.com/ms-henglu/graft/cmd"
+	"github.com/ms-henglu/graft/internal/log"
+	"github.com/spf13/cobra"
+)
+
+func main() {
+	var verbose bool
+
+	rootCmd := &cobra.Command{
+		Use:           "graft",
+		Short:         "The Overlay Engine for Terraform",
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		CompletionOptions: cobra.CompletionOptions{
+			DisableDefaultCmd: true,
+		},
+		PersistentPreRun: func(cmd *cobra.Command, args []string) {
+			log.Init(verbose)
+		},
+	}
+
+	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
+
+	rootCmd.AddCommand(cmd.NewBuildCmd())
+	rootCmd.AddCommand(cmd.NewCleanCmd())
+	rootCmd.AddCommand(cmd.NewScaffoldCmd())
+
+	if err := rootCmd.Execute(); err != nil {
+		log.Error(err.Error())
+		os.Exit(1)
+	}
+}
