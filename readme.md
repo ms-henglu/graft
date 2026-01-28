@@ -41,6 +41,8 @@ Check out the [examples](./examples) directory for practical scenarios:
 *   [Handling For-Each Resources](./examples/05-for-each-override)
 *   [Multi-Layer Overrides](./examples/06-multi-layer-module-override)
 *   [Scaffolding a Manifest](./examples/07-scaffold)
+*   [Lifecycle: Ignore Changes](./examples/08-lifecycle-ignore-changes)
+*   [Lifecycle: Prevent Destroy](./examples/09-lifecycle-prevent-destroy)
 
 ---
 
