@@ -8,12 +8,15 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var version = "v0.1.0"
+
 func main() {
 	var verbose bool
 
 	rootCmd := &cobra.Command{
 		Use:           "graft",
-		Short:         "The Overlay Engine for Terraform",
+		Short:         "The Overlay Engine for Terraform " + version,
+		Version:       version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		CompletionOptions: cobra.CompletionOptions{
