@@ -43,6 +43,7 @@ Check out the [examples](./examples) directory for practical scenarios:
 *   [Scaffolding a Manifest](./examples/07-scaffold)
 *   [Lifecycle: Ignore Changes](./examples/08-lifecycle-ignore-changes)
 *   [Lifecycle: Prevent Destroy](./examples/09-lifecycle-prevent-destroy)
+*   [Mark Values as Sensitive](./examples/10-mark-as-sensitive)
 
 ---
 
