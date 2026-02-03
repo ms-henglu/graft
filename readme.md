@@ -116,7 +116,7 @@ graft build -m custom.graft.hcl
 
 
 ### **`scaffold`**
-Interactively scans your project modules and generates a graft manifest (`manifest.graft.hcl`).
+Interactively scans your project modules and generates a graft manifest (`scaffold.graft.hcl`).
 
 It automatically discovers all module calls in your project, displays a tree view of the module hierarchy, and generates a boilerplate manifest with placeholder overrides for every resource found.
 
@@ -134,7 +134,7 @@ root
     └── [3 resources]
 -> Tip: Run 'graft scaffold <MODULE_KEY>' to generate a manifest for a specific module.
 -> Example: graft scaffold linux_servers.os
-✨ manifest.graft.hcl saved to ./manifest.graft.hcl
+✨ Graft manifest saved to ./scaffold.graft.hcl
 ```
 
 You can also scaffold for a specific module:

@@ -13,6 +13,13 @@ import (
 	"github.com/ms-henglu/graft/cmd"
 )
 
+// testConfig defines the test configuration parsed from expected.hcl
+type testConfig struct {
+	Command       string   // "build" (default) or "scaffold"
+	CommandArgs   []string // Arguments for the command (e.g., module keys for scaffold)
+	ExpectedFiles []expectedFile
+}
+
 // expectedFile defines an expected output file
 type expectedFile struct {
 	Path        string
@@ -24,12 +31,17 @@ type expectedFile struct {
 // TestAcceptance runs end-to-end acceptance tests using the testdata folder.
 // Each test case directory should contain:
 // - main.tf: The Terraform configuration
-// - manifest.graft.hcl (or *.graft.hcl): The Graft manifest
+// - manifest.graft.hcl (or *.graft.hcl): The Graft manifest (for build tests)
 // - expected.hcl: Expected behavior specification
+//
+// The expected.hcl file can specify:
+// - command = "build" (default) or "scaffold"
+// - command_args = ["arg1", "arg2"] (optional arguments for the command)
+// - expected "path/to/file" { ... } blocks for file verification
 //
 // The test will:
 // 1. Run terraform init to initialize the test case
-// 2. Run graft build command
+// 2. Run the specified graft command (build or scaffold)
 // 3. Verify expected output files are generated
 func TestAcceptance(t *testing.T) {
 	// Check if terraform is available
@@ -77,21 +89,28 @@ func runAcceptanceTest(t *testing.T, testPath string) {
 		}
 	}()
 
-	// Load expected output specification
-	expectedFiles := loadExpectedHCL(t)
+	// Load test configuration from expected.hcl
+	config := loadExpectedHCL(t)
 
 	// Run terraform init
 	runTerraformInit(t)
 
-	// Run graft build command
-	runGraftBuild(t)
+	// Run the appropriate graft command
+	switch config.Command {
+	case "scaffold":
+		runGraftScaffold(t, config.CommandArgs)
+	case "build", "":
+		runGraftBuild(t)
+	default:
+		t.Fatalf("Unknown command: %s", config.Command)
+	}
 
 	// Verify expected files
-	verifyExpectedFiles(t, expectedFiles)
+	verifyExpectedFiles(t, config.ExpectedFiles)
 }
 
 // loadExpectedHCL loads the expected.hcl file for a test case
-func loadExpectedHCL(t *testing.T) []expectedFile {
+func loadExpectedHCL(t *testing.T) testConfig {
 	t.Helper()
 
 	content, err := os.ReadFile("expected.hcl")
@@ -102,6 +121,20 @@ func loadExpectedHCL(t *testing.T) []expectedFile {
 	f, diags := hclwrite.ParseConfig(content, "expected.hcl", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
 		t.Fatalf("Failed to parse expected.hcl: %s", diags.Error())
+	}
+
+	config := testConfig{
+		Command: "build", // default command
+	}
+
+	// Parse command attribute at top level
+	if attr := f.Body().GetAttribute("command"); attr != nil {
+		config.Command = strings.Trim(strings.TrimSpace(string(attr.Expr().BuildTokens(nil).Bytes())), "\"")
+	}
+
+	// Parse command_args attribute at top level
+	if attr := f.Body().GetAttribute("command_args"); attr != nil {
+		config.CommandArgs = parseStringList(attr)
 	}
 
 	var files []expectedFile
@@ -140,7 +173,8 @@ func loadExpectedHCL(t *testing.T) []expectedFile {
 		files = append(files, ef)
 	}
 
-	return files
+	config.ExpectedFiles = files
+	return config
 }
 
 // parseStringList parses an HCL list attribute into a string slice
@@ -182,6 +216,17 @@ func runGraftBuild(t *testing.T) {
 	buildCmd := cmd.NewBuildCmd()
 	if err := buildCmd.Execute(); err != nil {
 		t.Fatalf("graft build failed: %v", err)
+	}
+}
+
+// runGraftScaffold runs the graft scaffold command using cmd.NewScaffoldCmd()
+func runGraftScaffold(t *testing.T, args []string) {
+	t.Helper()
+
+	scaffoldCmd := cmd.NewScaffoldCmd()
+	scaffoldCmd.SetArgs(args)
+	if err := scaffoldCmd.Execute(); err != nil {
+		t.Fatalf("graft scaffold failed: %v", err)
 	}
 }
 

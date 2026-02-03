@@ -1,5 +1,7 @@
 # Tests that Graft can inject new resources and outputs into a module.
 
+command = "build"
+
 expected ".graft/build/app/_graft_add.tf" {
   content {
     # Inject a new resource into the module

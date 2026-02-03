@@ -1,5 +1,7 @@
 # Tests that Graft can override local values in a module.
 
+command = "build"
+
 expected ".graft/build/app/_graft_override.tf" {
   content {
     locals {

@@ -94,10 +94,10 @@ func NewScaffoldCmd() *cobra.Command {
 				log.Section(fmt.Sprintf("Scaffolding module: %s", strings.Join(args, " ")))
 			}
 
-			// Generate manifest.graft.hcl
+			// Generate scaffold.graft.hcl
 			filename := outputFile
 			if filename == "" {
-				filename = "manifest.graft.hcl"
+				filename = "scaffold.graft.hcl"
 			}
 			savePath := filename
 			if !filepath.IsAbs(savePath) {
@@ -123,12 +123,12 @@ func NewScaffoldCmd() *cobra.Command {
 				return err
 			}
 
-			log.Success(fmt.Sprintf("Manifest saved to %s", savePath))
+			log.Success(fmt.Sprintf("Graft manifest saved to %s", savePath))
 			return nil
 		},
 	}
 
-	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file path (default: manifest.graft.hcl)")
+	cmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file path (default: scaffold.graft.hcl)")
 
 	return cmd
 }
