@@ -6,26 +6,23 @@ import (
 )
 
 func resolveGraftTokens(overrideBlocks []*hclwrite.Block, existingBlocks map[string]*hclwrite.Block, existingLocals map[string]*hclwrite.Attribute) {
-	for _, overrideBlock := range overrideBlocks {
-		srcBody := overrideBlock.Body()
-		for _, block := range srcBody.Blocks() {
-			if block.Type() == "locals" {
-				for name, attr := range block.Body().Attributes() {
-					if targetAttr, ok := existingLocals[name]; ok {
-						valTokens := attr.Expr().BuildTokens(nil)
-						newTokens := replaceGraftSourceTokens(valTokens, targetAttr.Expr().BuildTokens(nil))
-						if newTokens != nil {
-							block.Body().SetAttributeRaw(name, newTokens)
-						}
+	for _, block := range overrideBlocks {
+		if block.Type() == "locals" {
+			for name, attr := range block.Body().Attributes() {
+				if targetAttr, ok := existingLocals[name]; ok {
+					valTokens := attr.Expr().BuildTokens(nil)
+					newTokens := replaceGraftSourceTokens(valTokens, targetAttr.Expr().BuildTokens(nil))
+					if newTokens != nil {
+						block.Body().SetAttributeRaw(name, newTokens)
 					}
 				}
-				continue
 			}
+			continue
+		}
 
-			key := blockKey(block)
-			if existingBlock := existingBlocks[key]; existingBlock != nil {
-				resolveBodyGraftSource(block.Body(), existingBlock.Body())
-			}
+		key := blockKey(block)
+		if existingBlock := existingBlocks[key]; existingBlock != nil {
+			resolveBodyGraftSource(block.Body(), existingBlock.Body())
 		}
 	}
 }

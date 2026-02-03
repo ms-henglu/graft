@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/ms-henglu/graft/internal/log"
@@ -22,10 +23,36 @@ func NewBuildCmd() *cobra.Command {
 				return err
 			}
 
-			log.Section("Reading " + manifestFile + "...")
-			m, err := manifest.Parse(manifestFile)
-			if err != nil {
-				return err
+			var m *manifest.Manifest
+
+			// Check if -m flag was explicitly set
+			if cmd.Flags().Changed("manifest") {
+				// Use the specified manifest file
+				log.Section("Reading " + manifestFile + "...")
+				m, err = manifest.Parse(manifestFile)
+				if err != nil {
+					return err
+				}
+			} else {
+				// Discover all *.graft.hcl files in current directory
+				manifests, err := manifest.DiscoverManifests(cwd)
+				if err != nil {
+					return err
+				}
+
+				if len(manifests) == 0 {
+					// no graft manifests found, recommend the scaffold command
+					log.Hint("No graft manifests found in the current directory.\nYou can create one by running 'graft scaffold' command.")
+					return nil
+				}
+
+				// Parse and merge all discovered graft manifests
+				log.Section(fmt.Sprintf("Reading %d graft manifests...", len(manifests)))
+
+				m, err = manifest.ParseMultiple(manifests)
+				if err != nil {
+					return err
+				}
 			}
 
 			log.Section("Vendoring modules...")
@@ -52,6 +79,6 @@ func NewBuildCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&manifestFile, "manifest", "m", "manifest.graft.hcl", "Path to manifest file")
+	cmd.Flags().StringVarP(&manifestFile, "manifest", "m", "manifest.graft.hcl", "Path to graft manifest (if not specified, all *.graft.hcl files in current directory will be used)")
 	return cmd
 }

@@ -52,7 +52,7 @@ Check out the [examples](./examples) directory for practical scenarios:
 `graft` operates as a **Build-Time Transpiler** for your infrastructure code.
 
 ```text
-       [Upstream Registry]            [manifest.graft.hcl]
+       [Upstream Registry]            [Graft Manifest]
                |                            |
           (Downloads)                   (Defines)
                |                            |
@@ -71,7 +71,7 @@ Check out the [examples](./examples) directory for practical scenarios:
 ```
 
 1.  **Vendor**: It downloads/copies the specified upstream module to a local `.graft/` directory.
-2.  **Patch**: It parses the `manifest.graft.hcl` and applies your modifications inside the vendored directory through three specific mechanisms:
+2.  **Patch**: It parses the graft manifest (`*.graft.hcl`) and applies your modifications inside the vendored directory through three specific mechanisms:
     *   **Generation of `_graft_add.tf`**: New resources or blocks defined in your manifest are written to this file, effectively appending them to the module.
     *   **Generation of `_graft_override.tf`**: Attribute overrides are written to this file, leveraging Terraform's native override behavior to merge configurations.
     *   **Source Modification**: Changes that cannot be handled by overrides—such as removing resources or specific attributes—are applied directly to the source files within the vendored directory.
@@ -87,10 +87,10 @@ Vendors modules, applies local patches, and configures Terraform to use them usi
 
 ```bash
 # Vendors modules and redirects .terraform/modules/modules.json to point to them
-# Requires manifest.graft.hcl to be present
+# Auto-discovers all *.graft.hcl files in the current directory
 graft build
 
-[+] Reading manifest.graft.hcl...
+[+] Reading 2 graft manifests...
 [+] Vendoring modules...
     - linux_servers (v5.3.0) [Cache Hit]
     - linux_servers.os (Local)
@@ -103,6 +103,12 @@ graft build
 ✨ Build complete!
 ```
 
+You can also specify a single graft manifest explicitly:
+
+```bash
+graft build -m custom.graft.hcl
+```
+
 *   **Behavior**:
     1.  **Vendor**: Copies modules to `.graft/build/`.
     2.  **Patch**: Applies `override` rules.
@@ -110,7 +116,7 @@ graft build
 
 
 ### **`scaffold`**
-Interactively scans your project modules and generates a `manifest.graft.hcl`.
+Interactively scans your project modules and generates a graft manifest (`manifest.graft.hcl`).
 
 It automatically discovers all module calls in your project, displays a tree view of the module hierarchy, and generates a boilerplate manifest with placeholder overrides for every resource found.
 
@@ -158,14 +164,22 @@ graft clean
 
 ---
 
-## Graft Configuration
+## Graft Manifest
 
-The Graft configuration file (typically `manifest.graft.hcl`) acts as an enhanced version of [Terraform Override Files](https://developer.hashicorp.com/terraform/language/files/override). It retains standard Terraform behavior, while introducing powerful capabilities for adding, modifying, and removing infrastructure elements.
+The graft manifest (typically `manifest.graft.hcl` or any `*.graft.hcl` file) acts as an enhanced version of [Terraform Override Files](https://developer.hashicorp.com/terraform/language/files/override). It retains standard Terraform behavior, while introducing powerful capabilities for adding, modifying, and removing infrastructure elements.
 
+### Multi-File Support
+
+Graft supports splitting your manifest across multiple `*.graft.hcl` files. When you run `graft build`, all graft manifests in the current directory are automatically discovered, sorted alphabetically, and deep-merged together.
+
+**Merge Behavior**:
+*   Files are processed in alphabetical order (e.g., `a.graft.hcl` before `b.graft.hcl`).
+*   For conflicting attributes, **last write wins** (later files override earlier ones).
+*   Blocks are merged by type and labels (e.g., two `resource "azurerm_virtual_network" "main"` blocks are merged, not duplicated).
 
 ### Basic Structure
 
-A Graft configuration uses `module` blocks to navigate the dependency tree and `override` blocks to apply changes.
+A graft manifest uses `module` blocks to navigate the dependency tree and `override` blocks to apply changes.
 
 ```hcl
 # filename: manifest.graft.hcl
@@ -188,7 +202,7 @@ module "networking" {
 
 ### 1. Add New Resources
 
-Standard Terraform `override` files can only modify existing resources. Graft extends this by allowing you to define **new** top-level blocks (resources, outputs, providers, locals) inside an `override` block. These are appended to the target module.
+Standard Terraform `override` files can only modify existing resources. The graft manifest extends this by allowing you to define **new** top-level blocks (resources, outputs, providers, locals) inside an `override` block. These are appended to the target module.
 
 ```hcl
 override {

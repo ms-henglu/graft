@@ -177,7 +177,9 @@ resource "test" "example" {
 		t.Run(tc.name, func(t *testing.T) {
 			wrappedHCL := "override {\n" + tc.overrideHCL + "\n}"
 			f, _ := hclwrite.ParseConfig([]byte(wrappedHCL), "", hcl.Pos{Line: 1, Column: 1})
-			overrideBlocks := f.Body().Blocks()
+			// Flatten: extract content blocks from the override wrapper
+			overrideWrapper := f.Body().FirstMatchingBlock("override", nil)
+			overrideBlocks := overrideWrapper.Body().Blocks()
 
 			var existingLocalsMap map[string]*hclwrite.Attribute
 			if tc.existingLocalsHCL != "" {
@@ -197,7 +199,8 @@ resource "test" "example" {
 			}
 
 			resolveGraftTokens(overrideBlocks, existingBlocksMap, existingLocalsMap)
-			got := string(overrideBlocks[0].Body().BuildTokens(nil).Bytes())
+			// Build output from the first content block
+			got := string(overrideBlocks[0].BuildTokens(nil).Bytes())
 			expectHCL(t, got, tc.expectedHCL)
 		})
 	}

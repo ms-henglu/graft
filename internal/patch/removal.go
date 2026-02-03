@@ -14,15 +14,13 @@ import (
 
 func applyRemovals(modulePath string, overrideBlocks []*hclwrite.Block) error {
 	graftBlocks := make(map[string]*hclwrite.Block)
-	for _, overrideBlock := range overrideBlocks {
-		for _, block := range overrideBlock.Body().Blocks() {
-			graftBlock := filterBlockWithType(block, "_graft")
-			if graftBlock == nil {
-				continue
-			}
-			graftBlocks[blockKey(block)] = graftBlock
-			block.Body().RemoveBlock(graftBlock)
+	for _, block := range overrideBlocks {
+		graftBlock := filterBlockWithType(block, "_graft")
+		if graftBlock == nil {
+			continue
 		}
+		graftBlocks[blockKey(block)] = graftBlock
+		block.Body().RemoveBlock(graftBlock)
 	}
 
 	entries, err := filepath.Glob(filepath.Join(modulePath, "*.tf"))
