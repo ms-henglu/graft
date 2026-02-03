@@ -29,7 +29,7 @@ You have an existing Terraform project with modules, and you want to start using
         └── [3 resources]
     -> Tip: Run 'graft scaffold <MODULE_KEY>' to generate a manifest for a specific module.
     -> Example: graft scaffold linux_servers.os
-    ✨ Manifest saved to ~/graft/examples/07-scaffold/manifest.graft.hcl
+    ✨ Graft manifest saved to ~/graft/examples/07-scaffold/scaffold.graft.hcl
    ```
  
    If you want to scaffold only the `network` module, run:
@@ -38,7 +38,7 @@ You have an existing Terraform project with modules, and you want to start using
    ```
 
 4. **Review the Generated Manifest**  
-   Open `manifest.graft.hcl` to see the generated configuration. You can now add your customization logic inside the `module "network"` block.
+   Open `scaffold.graft.hcl` to see the generated configuration. You can now add your customization logic inside the `module "network"` block, then rename it to `manifest.graft.hcl` or merge with your existing manifest.
 
     ```hcl
 

@@ -1,5 +1,7 @@
 # Tests that Graft can vendor and patch a module from the public Terraform registry.
 
+command = "build"
+
 expected ".graft/build/labels/_graft_override.tf" {
   content {
     locals {
