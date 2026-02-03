@@ -33,9 +33,6 @@ override {
   locals {
     foo = "bar"
   }
-
-  # Attribute at top level
-  version = "2.0"
 }
 `,
 			existingBlocks: map[string]*hclwrite.Block{
@@ -44,8 +41,7 @@ override {
 			existingLocals: createLocalsMap(map[string]cty.Value{
 				"foo": cty.StringVal("val"),
 			}),
-			expected: `version = "2.0"
-resource "test" "existing" {
+			expected: `resource "test" "existing" {
   bucket = "new"
 }
 locals {
@@ -147,7 +143,8 @@ override {
 				t.Fatal(diags.Error())
 			}
 			overrideBlock := f.Body().FirstMatchingBlock("override", nil)
-			overrideBlocks := []*hclwrite.Block{overrideBlock}
+			// Flatten: extract content blocks from the override wrapper
+			overrideBlocks := overrideBlock.Body().Blocks()
 
 			resolveGraftTokens(overrideBlocks, tc.existingBlocks, tc.existingLocals)
 
@@ -219,7 +216,8 @@ override {
 				t.Fatal(diags.Error())
 			}
 			overrideBlock := f.Body().FirstMatchingBlock("override", nil)
-			overrideBlocks := []*hclwrite.Block{overrideBlock}
+			// Flatten: extract content blocks from the override wrapper
+			overrideBlocks := overrideBlock.Body().Blocks()
 
 			gotFile := generateAddFile(overrideBlocks, tc.existingBlocks, tc.existingLocals)
 			got := string(gotFile.Bytes())

@@ -253,10 +253,11 @@ resource "foo" "bar" {
 				t.Fatalf("failed to parse override: %s", diags.Error())
 			}
 
+			// Flatten: extract content blocks from override wrappers
 			var overrides []*hclwrite.Block
 			for _, b := range f.Body().Blocks() {
 				if b.Type() == "override" {
-					overrides = append(overrides, b)
+					overrides = append(overrides, b.Body().Blocks()...)
 				}
 			}
 

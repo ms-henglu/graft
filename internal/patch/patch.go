@@ -2,12 +2,13 @@ package patch
 
 import (
 	"fmt"
-	"github.com/hashicorp/hcl/v2/hclwrite"
-	"github.com/ms-henglu/graft/internal/log"
-	"github.com/ms-henglu/graft/internal/manifest"
 	"os"
 	"path/filepath"
 	"sort"
+
+	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/ms-henglu/graft/internal/log"
+	"github.com/ms-henglu/graft/internal/manifest"
 )
 
 // ApplyPatches applies overrides to vendored modules
@@ -101,30 +102,27 @@ func generateAddFile(overrideBlocks []*hclwrite.Block, existingBlocks map[string
 	fAdd := hclwrite.NewEmptyFile()
 	bAdd := fAdd.Body()
 
-	for _, overrideBlock := range overrideBlocks {
-		srcBody := overrideBlock.Body()
-		for _, block := range srcBody.Blocks() {
-			if block.Type() == "locals" {
-				newLocals := hclwrite.NewBlock("locals", nil)
-				hasAttr := false
-				for name, attr := range block.Body().Attributes() {
-					if existingLocals[name] == nil {
-						newLocals.Body().SetAttributeRaw(name, attr.Expr().BuildTokens(nil))
-						hasAttr = true
-					}
+	for _, block := range overrideBlocks {
+		if block.Type() == "locals" {
+			newLocals := hclwrite.NewBlock("locals", nil)
+			hasAttr := false
+			for name, attr := range block.Body().Attributes() {
+				if existingLocals[name] == nil {
+					newLocals.Body().SetAttributeRaw(name, attr.Expr().BuildTokens(nil))
+					hasAttr = true
 				}
-				if hasAttr {
-					bAdd.AppendBlock(newLocals)
-				}
+			}
+			if hasAttr {
+				bAdd.AppendBlock(newLocals)
+			}
+			continue
+		}
+		key := blockKey(block)
+		if existingBlocks[key] == nil {
+			if len(block.Body().Attributes()) == 0 && len(block.Body().Blocks()) == 0 {
 				continue
 			}
-			key := blockKey(block)
-			if existingBlocks[key] == nil {
-				if len(block.Body().Attributes()) == 0 && len(block.Body().Blocks()) == 0 {
-					continue
-				}
-				bAdd.AppendBlock(block)
-			}
+			bAdd.AppendBlock(block)
 		}
 	}
 	return fAdd
@@ -134,40 +132,30 @@ func generateOverrideFile(overrideBlocks []*hclwrite.Block, existingBlocks map[s
 	fOverride := hclwrite.NewEmptyFile()
 	bOverride := fOverride.Body()
 
-	for _, overrideBlock := range overrideBlocks {
-		srcBody := overrideBlock.Body()
+	for _, block := range overrideBlocks {
+		key := blockKey(block)
 
-		// Copy attributes to override file
-		for name, attr := range srcBody.Attributes() {
-			bOverride.SetAttributeRaw(name, attr.Expr().BuildTokens(nil))
+		if block.Type() == "locals" {
+			newLocals := hclwrite.NewBlock("locals", nil)
+			hasAttr := false
+			for name, attr := range block.Body().Attributes() {
+				if _, ok := existingLocals[name]; ok {
+					newLocals.Body().SetAttributeRaw(name, attr.Expr().BuildTokens(nil))
+					hasAttr = true
+				}
+			}
+			if hasAttr {
+				bOverride.AppendBlock(newLocals)
+			}
+			continue
 		}
 
-		// Distribute blocks
-		for _, block := range srcBody.Blocks() {
-			key := blockKey(block)
-
-			if block.Type() == "locals" {
-				newLocals := hclwrite.NewBlock("locals", nil)
-				hasAttr := false
-				for name, attr := range block.Body().Attributes() {
-					if _, ok := existingLocals[name]; ok {
-						newLocals.Body().SetAttributeRaw(name, attr.Expr().BuildTokens(nil))
-						hasAttr = true
-					}
-				}
-				if hasAttr {
-					bOverride.AppendBlock(newLocals)
-				}
+		if existingBlocks[key] != nil {
+			// If block is empty, which can happen if we stripped things, check if it's meaningful
+			if len(block.Body().Attributes()) == 0 && len(block.Body().Blocks()) == 0 {
 				continue
 			}
-
-			if existingBlocks[key] != nil {
-				// If block is empty, which can happen if we stripped things, check if it's meaningful
-				if len(block.Body().Attributes()) == 0 && len(block.Body().Blocks()) == 0 {
-					continue
-				}
-				bOverride.AppendBlock(block)
-			}
+			bOverride.AppendBlock(block)
 		}
 	}
 	return fOverride

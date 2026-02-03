@@ -3,6 +3,8 @@ package manifest
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/hashicorp/hcl/v2"
@@ -11,8 +13,7 @@ import (
 
 // Manifest represents the structure of manifest.hcl
 type Manifest struct {
-	File           *hclwrite.File
-	RootOverrides  []*hclwrite.Block
+	RootOverrides  []*hclwrite.Block // Flattened content blocks (resource, data, locals, etc.)
 	Modules        []Module
 	PatchedModules map[string]Module
 }
@@ -23,7 +24,7 @@ type Module struct {
 	Name           string
 	Source         string
 	Version        string
-	OverrideBlocks []*hclwrite.Block
+	OverrideBlocks []*hclwrite.Block // Flattened content blocks (resource, data, locals, etc.)
 	Modules        []Module
 }
 
@@ -39,8 +40,8 @@ func Parse(path string) (*Manifest, error) {
 		return nil, fmt.Errorf("failed to parse manifest: %s", diags.Error())
 	}
 
-	m := &Manifest{File: f}
-	m.RootOverrides = filterBlocks(f.Body(), "override")
+	m := &Manifest{}
+	m.RootOverrides = flattenOverrideBlocks(filterBlocks(f.Body(), "override"))
 	m.Modules = parseModules(f.Body())
 
 	m.PatchedModules = make(map[string]Module)
@@ -77,7 +78,7 @@ func parseModules(body *hclwrite.Body) []Module {
 			Name:           name,
 			Source:         source,
 			Version:        version,
-			OverrideBlocks: filterBlocks(block.Body(), "override"),
+			OverrideBlocks: flattenOverrideBlocks(filterBlocks(block.Body(), "override")),
 			Modules:        parseModules(block.Body()),
 		}
 		modules = append(modules, mod)
@@ -111,4 +112,71 @@ func filterBlocks(body *hclwrite.Body, blockType string) []*hclwrite.Block {
 		}
 	}
 	return blocks
+}
+
+// flattenOverrideBlocks extracts and flattens all content blocks from override blocks.
+// This removes the "override" wrapper and returns the actual resource/data/locals blocks.
+func flattenOverrideBlocks(overrideBlocks []*hclwrite.Block) []*hclwrite.Block {
+	var result []*hclwrite.Block
+	for _, override := range overrideBlocks {
+		result = append(result, override.Body().Blocks()...)
+	}
+	return result
+}
+
+// DiscoverManifests finds all *.graft.hcl files in the given directory
+// and returns them sorted alphabetically
+func DiscoverManifests(dir string) ([]string, error) {
+	pattern := filepath.Join(dir, "*.graft.hcl")
+	matches, err := filepath.Glob(pattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to glob manifest files: %w", err)
+	}
+
+	if len(matches) == 0 {
+		return nil, nil
+	}
+
+	// Sort alphabetically to ensure deterministic loading order
+	sort.Strings(matches)
+	return matches, nil
+}
+
+// ParseMultiple parses multiple manifest files and merges them using deep merge logic.
+// Files are processed in the order provided (should be alphabetically sorted).
+// For modules with the same name, their contents are merged:
+// - override blocks are combined
+// - nested modules are merged recursively
+// - attributes use "last write wins" semantics
+func ParseMultiple(paths []string) (*Manifest, error) {
+	if len(paths) == 0 {
+		return nil, fmt.Errorf("no manifest files provided")
+	}
+
+	merged := &Manifest{}
+	// Merge subsequent files
+	for _, path := range paths {
+		other, err := Parse(path)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse %s: %w", path, err)
+		}
+
+		merged = mergeManifests(merged, other)
+	}
+
+	// Rebuild PatchedModules map after merge
+	merged.PatchedModules = make(map[string]Module)
+	collectPatchedModules(merged.Modules, "", merged.PatchedModules)
+
+	return merged, nil
+}
+
+// mergeManifests merges two manifests using deep merge logic
+func mergeManifests(base, other *Manifest) *Manifest {
+	result := &Manifest{
+		RootOverrides:  mergeOverrideBlocks(base.RootOverrides, other.RootOverrides),
+		Modules:        mergeModuleLists(base.Modules, other.Modules),
+		PatchedModules: make(map[string]Module),
+	}
+	return result
 }
