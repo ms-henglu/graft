@@ -24,9 +24,15 @@ Graft allows you to surgically modify any Terraform module, even if you don't ow
 
 ## Installation
 
+### Go Install
+
 ```bash
 go install github.com/ms-henglu/graft@latest
 ```
+
+### Manual Download
+
+Download the appropriate binary for your platform from the [Releases](https://github.com/ms-henglu/graft/releases) page.
 
 ---
 
