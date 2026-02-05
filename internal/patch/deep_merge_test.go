@@ -547,19 +547,6 @@ resource "azurerm_virtual_network" "main" {
 	}
 }
 
-// normalizeHCL normalizes HCL for comparison by removing extra whitespace
-func normalizeHCL(s string) string {
-	lines := strings.Split(s, "\n")
-	var result []string
-	for _, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if trimmed != "" {
-			result = append(result, trimmed)
-		}
-	}
-	return strings.Join(result, "\n")
-}
-
 // normalizeHCLSorted normalizes HCL and sorts attribute lines within blocks
 // This handles attribute ordering differences from map iteration
 func normalizeHCLSorted(s string) string {
