@@ -59,7 +59,7 @@ func deepMergeNestedBlock(sourceBlock, overrideBlock *hclwrite.Block, isRootLeve
 		toBlock = result
 	}
 
-	if !isRootLevel {
+	if !isRootLevel && fromBlock != nil {
 		// Copy all attributes from source in sorted order
 		attrs := fromBlock.Body().Attributes()
 		for _, name := range hcl.SortedAttributeNames(fromBlock.Body()) {
