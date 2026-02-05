@@ -62,6 +62,14 @@ func ApplyPatches(vendorMap map[string]string, m *manifest.Manifest) error {
 }
 
 func applyOverrides(modKey string, modulePath string, overrideBlocks []*hclwrite.Block) error {
+	// First, apply removals before reading existing blocks
+	// This ensures that removed blocks won't be included in deep merge
+	err := applyRemovals(modulePath, overrideBlocks)
+	if err != nil {
+		return fmt.Errorf("failed to calculate removals for %s: %w", modKey, err)
+	}
+
+	// Now read existing blocks after removals have been applied
 	existingBlocks, err := listBlocks(modulePath)
 	if err != nil {
 		return fmt.Errorf("failed to scan module for existing blocks: %w", err)
@@ -73,12 +81,6 @@ func applyOverrides(modKey string, modulePath string, overrideBlocks []*hclwrite
 	}
 
 	resolveGraftTokens(overrideBlocks, existingBlocks, existingLocals)
-
-	// Calculate and execute removals
-	err = applyRemovals(modulePath, overrideBlocks)
-	if err != nil {
-		return fmt.Errorf("failed to calculate removals for %s: %w", modKey, err)
-	}
 
 	overrideFile := generateOverrideFile(overrideBlocks, existingBlocks, existingLocals)
 	if len(overrideFile.Body().Attributes()) > 0 || len(overrideFile.Body().Blocks()) > 0 {
@@ -150,12 +152,22 @@ func generateOverrideFile(overrideBlocks []*hclwrite.Block, existingBlocks map[s
 			continue
 		}
 
-		if existingBlocks[key] != nil {
+		existingBlock := existingBlocks[key]
+		if existingBlock != nil {
 			// If block is empty, which can happen if we stripped things, check if it's meaningful
 			if len(block.Body().Attributes()) == 0 && len(block.Body().Blocks()) == 0 {
 				continue
 			}
-			bOverride.AppendBlock(block)
+
+			// Check if override has nested blocks that need deep merging
+			if len(block.Body().Blocks()) > 0 {
+				// Deep merge nested blocks from source
+				mergedBlock := deepMergeNestedBlock(existingBlock, block, true)
+				bOverride.AppendBlock(mergedBlock)
+			} else {
+				// No nested blocks, use as-is (Terraform handles shallow merge for attributes)
+				bOverride.AppendBlock(block)
+			}
 		}
 	}
 	return fOverride

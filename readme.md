@@ -293,6 +293,122 @@ We'll consider to add more advanced features in future releases, such as build-t
 
 ## Deep Dive
 
+### Override Behavior Details
+
+Graft extends Terraform's native override behavior to provide more intuitive merging for nested blocks.
+
+#### Deep Merge for Nested Blocks
+
+In native Terraform overrides, nested blocks are **replaced entirely**. This means if you override a single attribute in a nested block, you lose all other attributes from the source.
+
+Graft performs **deep merge** on nested blocks, preserving original attributes while applying your overrides:
+
+```hcl
+# Source module (main.tf)
+resource "azurerm_virtual_network" "main" {
+  subnet {
+    name             = "subnet1"
+    address_prefixes = ["10.0.1.0/24"]
+  }
+}
+
+# Graft manifest
+override {
+  resource "azurerm_virtual_network" "main" {
+    subnet {
+      default_outbound_access_enabled = false  # Add new attribute
+    }
+  }
+}
+
+# Generated _graft_override.tf (deep merged)
+resource "azurerm_virtual_network" "main" {
+  subnet {
+    address_prefixes                = ["10.0.1.0/24"]  # Preserved from source
+    name                            = "subnet1"        # Preserved from source
+    default_outbound_access_enabled = false            # Added from override
+  }
+}
+```
+
+#### Dynamic Block Support
+
+Graft also handles `dynamic` blocks correctly. When you override attributes in a dynamic block, Graft merges into the `content` block:
+
+```hcl
+# Source module with dynamic block
+resource "azurerm_virtual_network" "main" {
+  dynamic "subnet" {
+    for_each = var.subnets
+    content {
+      name             = subnet.value.name
+      address_prefixes = subnet.value.address_prefixes
+    }
+  }
+}
+
+# Graft manifest
+override {
+  resource "azurerm_virtual_network" "main" {
+    subnet {
+      default_outbound_access_enabled = false
+    }
+  }
+}
+
+# Generated _graft_override.tf
+resource "azurerm_virtual_network" "main" {
+  dynamic "subnet" {
+    for_each = var.subnets
+    content {
+      address_prefixes                = subnet.value.address_prefixes
+      name                            = subnet.value.name
+      default_outbound_access_enabled = false  # Merged into content
+    }
+  }
+}
+```
+
+#### Meta-Argument Blocks
+
+Certain Terraform meta-argument blocks have special override semantics and are **not** deep merged by Graft:
+
+- `lifecycle` - Merged on an argument-by-argument basis by Terraform (e.g., override `create_before_destroy` preserves existing `ignore_changes`)
+- `connection` - Completely replaced by the override block
+- `provisioner` - Override blocks replace all original provisioner blocks entirely
+
+These blocks are passed through to the override file as-is, letting Terraform handle them according to its native rules.
+
+#### Limitations
+
+The current deep merge implementation has some limitations:
+
+1. **No selective targeting**: When a resource has multiple nested blocks of the same type, the override is applied to **all** of them. There is currently no way to target a specific nested block by index or label.
+
+2. **Single override block**: If your manifest contains multiple blocks of the same nested type within an override, only the **first** one is used. Additional blocks are ignored.
+
+3. **Full replacement workaround**: If you need to completely replace all nested blocks (native Terraform override behavior), you can use `_graft` to remove the existing blocks first, then define the new blocks in the override:
+
+   ```hcl
+   override {
+     resource "azurerm_virtual_network" "main" {
+       # First, remove all existing subnet blocks
+       _graft {
+         remove = ["subnet"]
+       }
+       # Then define the new subnet blocks
+       subnet {
+         name             = "new-subnet-1"
+         address_prefixes = ["10.0.10.0/24"]
+       }
+       subnet {
+         name             = "new-subnet-2"
+         address_prefixes = ["10.0.20.0/24"]
+       }
+     }
+   }
+   ```
+
 ### Why The Linker Strategy?
 
 Why do we modify `.terraform/modules/modules.json` instead of generating a simple `override.tf` to point to the local path?

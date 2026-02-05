@@ -15,7 +15,7 @@ import (
 func applyRemovals(modulePath string, overrideBlocks []*hclwrite.Block) error {
 	graftBlocks := make(map[string]*hclwrite.Block)
 	for _, block := range overrideBlocks {
-		graftBlock := filterBlockWithType(block, "_graft")
+		graftBlock := block.Body().FirstMatchingBlock("_graft", nil)
 		if graftBlock == nil {
 			continue
 		}
