@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	"github.com/ms-henglu/graft/internal/hcl"
 )
 
 // mergeModuleLists merges two lists of modules
@@ -147,23 +148,8 @@ func mergeBlocks(base, other *hclwrite.Block) *hclwrite.Block {
 
 	for _, key := range nestedBlockOrder {
 		block := nestedBlockMap[key]
-		newBlock := result.Body().AppendNewBlock(block.Type(), block.Labels())
-		copyBlockContents(block, newBlock)
+		result.Body().AppendBlock(hcl.DeepCopyBlock(block))
 	}
 
 	return result
-}
-
-// copyBlockContents copies all attributes and nested blocks from src to dst
-func copyBlockContents(src, dst *hclwrite.Block) {
-	// Copy attributes
-	for name, attr := range src.Body().Attributes() {
-		dst.Body().SetAttributeRaw(name, attr.Expr().BuildTokens(nil))
-	}
-
-	// Copy nested blocks
-	for _, block := range src.Body().Blocks() {
-		newBlock := dst.Body().AppendNewBlock(block.Type(), block.Labels())
-		copyBlockContents(block, newBlock)
-	}
 }

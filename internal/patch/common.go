@@ -2,11 +2,12 @@ package patch
 
 import (
 	"fmt"
-	"github.com/hashicorp/hcl/v2"
-	"github.com/hashicorp/hcl/v2/hclwrite"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclwrite"
 )
 
 func listLocals(dir string) (map[string]*hclwrite.Attribute, error) {
@@ -76,13 +77,4 @@ func listBlocks(dir string) (map[string]*hclwrite.Block, error) {
 
 func blockKey(b *hclwrite.Block) string {
 	return fmt.Sprintf("%s.%s", b.Type(), strings.Join(b.Labels(), "."))
-}
-
-func filterBlockWithType(body *hclwrite.Block, blockType string) *hclwrite.Block {
-	for _, b := range body.Body().Blocks() {
-		if b.Type() == blockType {
-			return b
-		}
-	}
-	return nil
 }

@@ -9,6 +9,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclwrite"
+	grafthcl "github.com/ms-henglu/graft/internal/hcl"
 )
 
 // Manifest represents the structure of manifest.hcl
@@ -41,7 +42,7 @@ func Parse(path string) (*Manifest, error) {
 	}
 
 	m := &Manifest{}
-	m.RootOverrides = flattenOverrideBlocks(filterBlocks(f.Body(), "override"))
+	m.RootOverrides = flattenOverrideBlocks(grafthcl.BlocksByType(f.Body(), "override"))
 	m.Modules = parseModules(f.Body())
 
 	m.PatchedModules = make(map[string]Module)
@@ -78,7 +79,7 @@ func parseModules(body *hclwrite.Body) []Module {
 			Name:           name,
 			Source:         source,
 			Version:        version,
-			OverrideBlocks: flattenOverrideBlocks(filterBlocks(block.Body(), "override")),
+			OverrideBlocks: flattenOverrideBlocks(grafthcl.BlocksByType(block.Body(), "override")),
 			Modules:        parseModules(block.Body()),
 		}
 		modules = append(modules, mod)
@@ -102,16 +103,6 @@ func collectPatchedModules(modules []Module, parentKey string, patched map[strin
 		// Recurse
 		collectPatchedModules(mod.Modules, currentKey, patched)
 	}
-}
-
-func filterBlocks(body *hclwrite.Body, blockType string) []*hclwrite.Block {
-	var blocks []*hclwrite.Block
-	for _, block := range body.Blocks() {
-		if block.Type() == blockType {
-			blocks = append(blocks, block)
-		}
-	}
-	return blocks
 }
 
 // flattenOverrideBlocks extracts and flattens all content blocks from override blocks.

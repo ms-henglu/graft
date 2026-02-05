@@ -397,38 +397,6 @@ func TestMergeBlocks(t *testing.T) {
 	}
 }
 
-func TestCopyBlockContents(t *testing.T) {
-	srcHCL := `resource "test" "example" {
-  foo = "bar"
-  count = 1
-  
-  nested {
-    inner = "value"
-  }
-}`
-	f, _ := hclwrite.ParseConfig([]byte(srcHCL), "src.hcl", hcl.Pos{Line: 1, Column: 1})
-	src := f.Body().Blocks()[0]
-
-	dst := hclwrite.NewBlock("resource", []string{"test", "example"})
-	copyBlockContents(src, dst)
-
-	// Check attributes copied
-	attrs := dst.Body().Attributes()
-	if len(attrs) != 2 {
-		t.Errorf("expected 2 attributes copied, got %d", len(attrs))
-	}
-
-	// Check nested blocks copied
-	blocks := dst.Body().Blocks()
-	if len(blocks) != 1 {
-		t.Errorf("expected 1 nested block copied, got %d", len(blocks))
-	}
-
-	if blocks[0].Type() != "nested" {
-		t.Errorf("expected nested block type 'nested', got %q", blocks[0].Type())
-	}
-}
-
 func TestMergeOverrideBlocks_PreservesOrder(t *testing.T) {
 	baseHCL := `
 resource "aws_vpc" "main" {}
