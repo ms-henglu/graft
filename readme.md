@@ -24,6 +24,19 @@ Graft allows you to surgically modify any Terraform module, even if you don't ow
 
 ## Installation
 
+### Homebrew (macOS & Linux)
+
+```bash
+brew tap ms-henglu/graft
+brew install graft
+```
+
+Or in a single command:
+
+```bash
+brew install ms-henglu/graft/graft
+```
+
 ### Go Install
 
 ```bash
