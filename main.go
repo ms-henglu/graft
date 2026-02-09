@@ -32,6 +32,7 @@ func main() {
 	rootCmd.AddCommand(cmd.NewBuildCmd())
 	rootCmd.AddCommand(cmd.NewCleanCmd())
 	rootCmd.AddCommand(cmd.NewScaffoldCmd())
+	rootCmd.AddCommand(cmd.NewAbsorbCmd())
 
 	if err := rootCmd.Execute(); err != nil {
 		log.Error(err.Error())

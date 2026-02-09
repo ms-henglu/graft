@@ -15,8 +15,8 @@ import (
 
 // testConfig defines the test configuration parsed from expected.hcl
 type testConfig struct {
-	Command       string   // "build" (default) or "scaffold"
-	CommandArgs   []string // Arguments for the command (e.g., module keys for scaffold)
+	Command       string   // "build" (default), "scaffold", or "absorb"
+	CommandArgs   []string // Arguments for the command (e.g., module keys for scaffold, plan file for absorb)
 	ExpectedFiles []expectedFile
 }
 
@@ -92,13 +92,17 @@ func runAcceptanceTest(t *testing.T, testPath string) {
 	// Load test configuration from expected.hcl
 	config := loadExpectedHCL(t)
 
-	// Run terraform init
-	runTerraformInit(t)
+	// Run terraform init (not needed for absorb which reads plan JSON directly)
+	if config.Command != "absorb" {
+		runTerraformInit(t)
+	}
 
 	// Run the appropriate graft command
 	switch config.Command {
 	case "scaffold":
 		runGraftScaffold(t, config.CommandArgs)
+	case "absorb":
+		runGraftAbsorb(t, config.CommandArgs)
 	case "build", "":
 		runGraftBuild(t)
 	default:
@@ -227,6 +231,17 @@ func runGraftScaffold(t *testing.T, args []string) {
 	scaffoldCmd.SetArgs(args)
 	if err := scaffoldCmd.Execute(); err != nil {
 		t.Fatalf("graft scaffold failed: %v", err)
+	}
+}
+
+// runGraftAbsorb runs the graft absorb command using cmd.NewAbsorbCmd()
+func runGraftAbsorb(t *testing.T, args []string) {
+	t.Helper()
+
+	absorbCmd := cmd.NewAbsorbCmd()
+	absorbCmd.SetArgs(args)
+	if err := absorbCmd.Execute(); err != nil {
+		t.Fatalf("graft absorb failed: %v", err)
 	}
 }
 

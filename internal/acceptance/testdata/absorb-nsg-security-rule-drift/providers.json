@@ -1,0 +1,421 @@
+{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/azurerm": {
+      "provider": {
+        "version": 0,
+        "block": {
+          "attributes": {},
+          "block_types": {}
+        }
+      },
+      "resource_schemas": {
+        "azurerm_resource_group": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {
+                "type": "string",
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "location": {
+                "type": "string",
+                "description_kind": "plain",
+                "required": true
+              },
+              "managed_by": {
+                "type": "string",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "name": {
+                "type": "string",
+                "description_kind": "plain",
+                "required": true
+              },
+              "tags": {
+                "type": [
+                  "map",
+                  "string"
+                ],
+                "description_kind": "plain",
+                "optional": true
+              }
+            },
+            "block_types": {
+              "timeouts": {
+                "nesting_mode": "single",
+                "block": {
+                  "attributes": {
+                    "create": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "delete": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "read": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "update": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    }
+                  },
+                  "description_kind": "plain"
+                }
+              }
+            },
+            "description_kind": "plain"
+          }
+        },
+        "azurerm_virtual_network": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "address_space": {
+                "type": [
+                  "set",
+                  "string"
+                ],
+                "description_kind": "plain",
+                "optional": true
+              },
+              "bgp_community": {
+                "type": "string",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "dns_servers": {
+                "type": [
+                  "list",
+                  "string"
+                ],
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "edge_zone": {
+                "type": "string",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "flow_timeout_in_minutes": {
+                "type": "number",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "guid": {
+                "type": "string",
+                "description_kind": "plain",
+                "computed": true
+              },
+              "id": {
+                "type": "string",
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "location": {
+                "type": "string",
+                "description_kind": "plain",
+                "required": true
+              },
+              "name": {
+                "type": "string",
+                "description_kind": "plain",
+                "required": true
+              },
+              "private_endpoint_vnet_policies": {
+                "type": "string",
+                "description_kind": "plain",
+                "optional": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "description_kind": "plain",
+                "required": true
+              },
+              "subnet": {
+                "type": [
+                  "set",
+                  [
+                    "object",
+                    {
+                      "address_prefixes": [
+                        "list",
+                        "string"
+                      ],
+                      "default_outbound_access_enabled": "bool",
+                      "delegation": [
+                        "list",
+                        [
+                          "object",
+                          {
+                            "name": "string",
+                            "service_delegation": [
+                              "list",
+                              [
+                                "object",
+                                {
+                                  "actions": [
+                                    "set",
+                                    "string"
+                                  ],
+                                  "name": "string"
+                                }
+                              ]
+                            ]
+                          }
+                        ]
+                      ],
+                      "id": "string",
+                      "name": "string",
+                      "private_endpoint_network_policies": "string",
+                      "private_link_service_network_policies_enabled": "bool",
+                      "route_table_id": "string",
+                      "security_group": "string",
+                      "service_endpoint_policy_ids": [
+                        "set",
+                        "string"
+                      ],
+                      "service_endpoints": [
+                        "set",
+                        "string"
+                      ]
+                    }
+                  ]
+                ],
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "tags": {
+                "type": [
+                  "map",
+                  "string"
+                ],
+                "description_kind": "plain",
+                "optional": true
+              }
+            },
+            "block_types": {
+              "ddos_protection_plan": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "enable": {
+                      "type": "bool",
+                      "description_kind": "plain",
+                      "required": true
+                    },
+                    "id": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "required": true
+                    }
+                  },
+                  "description_kind": "plain"
+                },
+                "max_items": 1
+              },
+              "encryption": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "enforcement": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "required": true
+                    }
+                  },
+                  "description_kind": "plain"
+                },
+                "max_items": 1
+              },
+              "ip_address_pool": {
+                "nesting_mode": "list",
+                "block": {
+                  "attributes": {
+                    "allocated_ip_address_prefixes": {
+                      "type": [
+                        "list",
+                        "string"
+                      ],
+                      "description_kind": "plain",
+                      "computed": true
+                    },
+                    "id": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "required": true
+                    },
+                    "number_of_ip_addresses": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "required": true
+                    }
+                  },
+                  "description_kind": "plain"
+                },
+                "max_items": 2
+              },
+              "timeouts": {
+                "nesting_mode": "single",
+                "block": {
+                  "attributes": {
+                    "create": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "delete": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "read": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "update": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    }
+                  },
+                  "description_kind": "plain"
+                }
+              }
+            },
+            "description_kind": "plain"
+          }
+        },
+        "azurerm_network_security_group": {
+          "version": 0,
+          "block": {
+            "attributes": {
+              "id": {
+                "type": "string",
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "location": {
+                "type": "string",
+                "description_kind": "plain",
+                "required": true
+              },
+              "name": {
+                "type": "string",
+                "description_kind": "plain",
+                "required": true
+              },
+              "resource_group_name": {
+                "type": "string",
+                "description_kind": "plain",
+                "required": true
+              },
+              "security_rule": {
+                "type": [
+                  "set",
+                  [
+                    "object",
+                    {
+                      "access": "string",
+                      "description": "string",
+                      "destination_address_prefix": "string",
+                      "destination_address_prefixes": [
+                        "set",
+                        "string"
+                      ],
+                      "destination_application_security_group_ids": [
+                        "set",
+                        "string"
+                      ],
+                      "destination_port_range": "string",
+                      "destination_port_ranges": [
+                        "set",
+                        "string"
+                      ],
+                      "direction": "string",
+                      "name": "string",
+                      "priority": "number",
+                      "protocol": "string",
+                      "source_address_prefix": "string",
+                      "source_address_prefixes": [
+                        "set",
+                        "string"
+                      ],
+                      "source_application_security_group_ids": [
+                        "set",
+                        "string"
+                      ],
+                      "source_port_range": "string",
+                      "source_port_ranges": [
+                        "set",
+                        "string"
+                      ]
+                    }
+                  ]
+                ],
+                "description_kind": "plain",
+                "optional": true,
+                "computed": true
+              },
+              "tags": {
+                "type": [
+                  "map",
+                  "string"
+                ],
+                "description_kind": "plain",
+                "optional": true
+              }
+            },
+            "block_types": {
+              "timeouts": {
+                "nesting_mode": "single",
+                "block": {
+                  "attributes": {
+                    "create": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "delete": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "read": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    },
+                    "update": {
+                      "type": "string",
+                      "description_kind": "plain",
+                      "optional": true
+                    }
+                  },
+                  "description_kind": "plain"
+                }
+              }
+            },
+            "description_kind": "plain"
+          }
+        }
+      },
+      "data_source_schemas": {}
+    }
+  }
+}
