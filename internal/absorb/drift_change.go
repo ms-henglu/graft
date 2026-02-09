@@ -20,6 +20,7 @@ type DriftChange struct {
 	ProviderName string
 	Mode         string
 	ChangedAttrs map[string]interface{}
+	BeforeAttrs  map[string]interface{}
 }
 
 func (change DriftChange) ToBlock(schema *tfjson.SchemaBlock) *hclwrite.Block {
@@ -28,6 +29,14 @@ func (change DriftChange) ToBlock(schema *tfjson.SchemaBlock) *hclwrite.Block {
 	attrs, _ := result.(map[string]interface{})
 	if len(attrs) == 0 {
 		return nil
+	}
+
+	// Narrow to minimal diff using before state and schema
+	if change.BeforeAttrs != nil && schema != nil {
+		attrs = deepDiffBlock(change.BeforeAttrs, attrs, schema)
+		if len(attrs) == 0 {
+			return nil
+		}
 	}
 
 	resBlock := hclwrite.NewBlock("resource", []string{change.ResourceType, change.ResourceName})
@@ -84,10 +93,7 @@ func toBlocks(blockName string, value interface{}, schema *tfjson.SchemaBlock) [
 	case map[string]interface{}:
 		block := hclwrite.NewBlock(blockName, nil)
 		// Get the nested schema for this block
-		var nestedSchema *tfjson.SchemaBlock
-		if schema != nil && schema.NestedBlocks != nil && schema.NestedBlocks[blockName] != nil {
-			nestedSchema = schema.NestedBlocks[blockName].Block
-		}
+		nestedSchema := nestedBlockSchema(schema, blockName)
 
 		var keys []string
 		for key := range v {
@@ -124,6 +130,95 @@ func toBlocks(blockName string, value interface{}, schema *tfjson.SchemaBlock) [
 		out = append(out, block)
 	}
 	return out
+}
+
+// deepDiffBlock performs a schema-aware recursive diff between before and after
+// maps, returning only the changed attributes in after. For single nested blocks
+// (map values where shouldRenderAsBlock is true), it recurses to find the minimal
+// diff. For multiple blocks (slice values where shouldRenderAsBlock is true) and
+// plain attributes, it captures the full after value.
+func deepDiffBlock(before, after map[string]interface{}, schema *tfjson.SchemaBlock) map[string]interface{} {
+	if len(after) == 0 {
+		return nil
+	}
+
+	result := make(map[string]interface{})
+
+	for key, afterVal := range after {
+		beforeVal, hasBefore := before[key]
+
+		// If there's no before value, the attribute is new — capture full value
+		if !hasBefore {
+			result[key] = afterVal
+			continue
+		}
+
+		// If the values are equal, skip
+		if deepEqual(beforeVal, afterVal) {
+			continue
+		}
+
+		// Check if this key should be rendered as a block
+		if shouldRenderAsBlock(schema, key) {
+			afterMap, beforeMap, isSingleBlock := extractSingleBlock(afterVal, beforeVal)
+
+			// Single block — recurse for minimal diff
+			if isSingleBlock {
+				nestedSchema := nestedBlockSchema(schema, key)
+				if nestedSchema != nil {
+					diffed := deepDiffBlock(beforeMap, afterMap, nestedSchema)
+					if len(diffed) > 0 {
+						result[key] = diffed
+					}
+				} else {
+					// No nested schema available — capture full value
+					result[key] = afterVal
+				}
+				continue
+			}
+
+			// Multiple blocks (slice) — capture full array (needed for _graft remove)
+			result[key] = afterVal
+			continue
+		}
+
+		// Plain attribute (scalars, maps like tags) — capture full value
+		result[key] = afterVal
+	}
+
+	if len(result) == 0 {
+		return nil
+	}
+
+	return result
+}
+
+// extractSingleBlock checks whether both after and before values represent a
+// single block. In real Terraform plan JSON, single blocks are encoded as a
+// one-element array (e.g. "os_disk": [{...}]), but in test data they may appear
+// as plain maps. This function handles both representations and returns the
+// inner maps if exactly one block is present on each side.
+func extractSingleBlock(afterVal, beforeVal interface{}) (afterMap, beforeMap map[string]interface{}, ok bool) {
+	afterMap, afterOk := asSingleBlockMap(afterVal)
+	beforeMap, beforeOk := asSingleBlockMap(beforeVal)
+	if afterOk && beforeOk {
+		return afterMap, beforeMap, true
+	}
+	return nil, nil, false
+}
+
+// asSingleBlockMap extracts a single map from a value that is either a plain
+// map or a one-element slice containing a map.
+func asSingleBlockMap(val interface{}) (map[string]interface{}, bool) {
+	if m, ok := val.(map[string]interface{}); ok {
+		return m, true
+	}
+	if arr, ok := val.([]interface{}); ok && len(arr) == 1 {
+		if m, ok := arr[0].(map[string]interface{}); ok {
+			return m, true
+		}
+	}
+	return nil, false
 }
 
 func interfaceToCtyValue(v interface{}) cty.Value {

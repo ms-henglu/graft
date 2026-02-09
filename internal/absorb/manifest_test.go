@@ -409,7 +409,7 @@ func TestGenerateManifestWithSchemaFile(t *testing.T) {
 	planJSON := `{
 		"format_version": "1.0",
 		"terraform_version": "1.5.0",
-		"resource_drift": [
+		"resource_changes": [
 			{
 				"address": "module.network.azurerm_virtual_network.main",
 				"module_address": "module.network",
@@ -422,19 +422,18 @@ func TestGenerateManifestWithSchemaFile(t *testing.T) {
 					"before": {
 						"name": "my-vnet",
 						"subnet": [
-							{"name": "subnet1", "address_prefixes": ["10.0.1.0/24"], "id": "old-id"}
+							{"name": "subnet1", "address_prefixes": ["10.0.5.0/24"], "id": "new-id"}
 						]
 					},
 					"after": {
 						"name": "my-vnet",
 						"subnet": [
-							{"name": "subnet1", "address_prefixes": ["10.0.5.0/24"], "id": "new-id"}
+							{"name": "subnet1", "address_prefixes": ["10.0.1.0/24"], "id": "old-id"}
 						]
 					}
 				}
 			}
-		],
-		"resource_changes": []
+		]
 	}`
 
 	schemasJSON := `{

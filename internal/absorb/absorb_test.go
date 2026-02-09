@@ -54,11 +54,10 @@ func TestParseModulePath(t *testing.T) {
 
 func TestFindDriftedAttributes(t *testing.T) {
 	tests := []struct {
-		name         string
-		before       map[string]interface{}
-		after        map[string]interface{}
-		afterUnknown map[string]interface{}
-		expected     map[string]interface{}
+		name     string
+		before   map[string]interface{}
+		after    map[string]interface{}
+		expected map[string]interface{}
 	}{
 		{
 			name:     "nil after returns nil",
@@ -91,23 +90,6 @@ func TestFindDriftedAttributes(t *testing.T) {
 			},
 		},
 		{
-			name: "skips computed attributes from afterUnknown",
-			before: map[string]interface{}{
-				"name":     "test",
-				"computed": "old",
-			},
-			after: map[string]interface{}{
-				"name":     "changed",
-				"computed": "new",
-			},
-			afterUnknown: map[string]interface{}{
-				"computed": true,
-			},
-			expected: map[string]interface{}{
-				"name": "changed",
-			},
-		},
-		{
 			name: "skips timeouts",
 			before: map[string]interface{}{
 				"name":     "test",
@@ -125,7 +107,7 @@ func TestFindDriftedAttributes(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := findDriftedAttributes(tt.before, tt.after, tt.afterUnknown)
+			result := findDriftedAttributes(tt.before, tt.after)
 			if tt.expected == nil {
 				if result != nil {
 					t.Errorf("expected nil, got %v", result)
@@ -149,7 +131,7 @@ func TestParsePlanFile(t *testing.T) {
 	planJSON := `{
 		"format_version": "1.0",
 		"terraform_version": "1.5.0",
-		"resource_drift": [
+		"resource_changes": [
 			{
 				"address": "module.network.azurerm_virtual_network.vnet",
 				"module_address": "module.network",
@@ -159,8 +141,8 @@ func TestParsePlanFile(t *testing.T) {
 				"provider_name": "registry.terraform.io/hashicorp/azurerm",
 				"change": {
 					"actions": ["update"],
-					"before": { "tags": { "Env": "Prod" } },
-					"after": { "tags": { "Env": "Dev" } }
+					"before": { "tags": { "Env": "Dev" } },
+					"after": { "tags": { "Env": "Prod" } }
 				}
 			},
 			{
@@ -172,12 +154,11 @@ func TestParsePlanFile(t *testing.T) {
 				"provider_name": "registry.terraform.io/hashicorp/azurerm",
 				"change": {
 					"actions": ["update"],
-					"before": { "location": "eastus" },
-					"after": { "location": "westus" }
+					"before": { "location": "westus" },
+					"after": { "location": "eastus" }
 				}
 			}
-		],
-		"resource_changes": []
+		]
 	}`
 
 	tmpDir := t.TempDir()
@@ -227,7 +208,7 @@ func TestParsePlanFileRetainsAllAttributes(t *testing.T) {
 	planJSON := `{
 		"format_version": "1.0",
 		"terraform_version": "1.5.0",
-		"resource_drift": [
+		"resource_changes": [
 			{
 				"address": "module.network.azurerm_virtual_network.main",
 				"module_address": "module.network",
@@ -239,22 +220,21 @@ func TestParsePlanFileRetainsAllAttributes(t *testing.T) {
 					"actions": ["update"],
 					"before": {
 						"name": "my-vnet",
-						"guid": "old-guid",
-						"subnet": [
-							{"name": "subnet1", "address_prefixes": ["10.0.1.0/24"], "id": "old-id"}
-						]
-					},
-					"after": {
-						"name": "my-vnet",
 						"guid": "new-guid",
 						"subnet": [
 							{"name": "subnet1", "address_prefixes": ["10.0.5.0/24"], "id": "new-id"}
 						]
+					},
+					"after": {
+						"name": "my-vnet",
+						"guid": "old-guid",
+						"subnet": [
+							{"name": "subnet1", "address_prefixes": ["10.0.1.0/24"], "id": "old-id"}
+						]
 					}
 				}
 			}
-		],
-		"resource_changes": []
+		]
 	}`
 
 	tmpDir := t.TempDir()

@@ -464,6 +464,465 @@ func TestToBlock(t *testing.T) {
 	}
 }
 
+func TestDeepDiffBlock(t *testing.T) {
+	tests := []struct {
+		name     string
+		before   map[string]interface{}
+		after    map[string]interface{}
+		schema   *tfjson.SchemaBlock
+		expected map[string]interface{}
+	}{
+		{
+			name: "single block recursion - only changed nested attr",
+			before: map[string]interface{}{
+				"os_disk": map[string]interface{}{
+					"caching":      "ReadOnly",
+					"disk_size_gb": float64(30),
+					"diff_disk_settings": map[string]interface{}{
+						"option":    "Local",
+						"placement": "CacheDisk",
+					},
+				},
+			},
+			after: map[string]interface{}{
+				"os_disk": map[string]interface{}{
+					"caching":      "ReadOnly",
+					"disk_size_gb": float64(30),
+					"diff_disk_settings": map[string]interface{}{
+						"option":    "None",
+						"placement": "CacheDisk",
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching":      {Optional: true},
+								"disk_size_gb": {Optional: true},
+							},
+							NestedBlocks: map[string]*tfjson.SchemaBlockType{
+								"diff_disk_settings": {
+									NestingMode: tfjson.SchemaNestingModeList,
+									Block: &tfjson.SchemaBlock{
+										Attributes: map[string]*tfjson.SchemaAttribute{
+											"option":    {Required: true},
+											"placement": {Optional: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"os_disk": map[string]interface{}{
+					"diff_disk_settings": map[string]interface{}{
+						"option": "None",
+					},
+				},
+			},
+		},
+		{
+			name: "multiple blocks (slice) - capture full array",
+			before: map[string]interface{}{
+				"security_rule": []interface{}{
+					map[string]interface{}{"name": "rule1", "priority": float64(100)},
+				},
+			},
+			after: map[string]interface{}{
+				"security_rule": []interface{}{
+					map[string]interface{}{"name": "rule1", "priority": float64(100)},
+					map[string]interface{}{"name": "rule2", "priority": float64(200)},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"security_rule": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"name":     {Required: true},
+								"priority": {Required: true},
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"security_rule": []interface{}{
+					map[string]interface{}{"name": "rule1", "priority": float64(100)},
+					map[string]interface{}{"name": "rule2", "priority": float64(200)},
+				},
+			},
+		},
+		{
+			name: "plain map attribute (tags) - capture full value",
+			before: map[string]interface{}{
+				"tags": map[string]interface{}{"Env": "Dev", "Team": "Infra"},
+			},
+			after: map[string]interface{}{
+				"tags": map[string]interface{}{"Env": "Prod", "Team": "Infra"},
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"tags": {Optional: true, AttributeType: cty.Map(cty.String)},
+				},
+			},
+			expected: map[string]interface{}{
+				"tags": map[string]interface{}{"Env": "Prod", "Team": "Infra"},
+			},
+		},
+		{
+			name: "scalar attribute changed",
+			before: map[string]interface{}{
+				"name": "old-name",
+			},
+			after: map[string]interface{}{
+				"name": "new-name",
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"name": {Required: true},
+				},
+			},
+			expected: map[string]interface{}{
+				"name": "new-name",
+			},
+		},
+		{
+			name: "no changes - returns nil",
+			before: map[string]interface{}{
+				"name":     "same",
+				"location": "eastus",
+			},
+			after: map[string]interface{}{
+				"name":     "same",
+				"location": "eastus",
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"name":     {Required: true},
+					"location": {Required: true},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "mixed scenario - single block + scalar + unchanged",
+			before: map[string]interface{}{
+				"name": "my-vm",
+				"size": "Standard_DS2_v2",
+				"os_disk": map[string]interface{}{
+					"caching":      "ReadOnly",
+					"disk_size_gb": float64(30),
+				},
+			},
+			after: map[string]interface{}{
+				"name": "my-vm",
+				"size": "Standard_DS3_v2",
+				"os_disk": map[string]interface{}{
+					"caching":      "ReadWrite",
+					"disk_size_gb": float64(30),
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"name": {Required: true},
+					"size": {Required: true},
+				},
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching":      {Required: true},
+								"disk_size_gb": {Optional: true},
+							},
+						},
+					},
+				},
+			},
+			expected: map[string]interface{}{
+				"size": "Standard_DS3_v2",
+				"os_disk": map[string]interface{}{
+					"caching": "ReadWrite",
+				},
+			},
+		},
+		{
+			name:   "new attribute not in before - captured",
+			before: map[string]interface{}{},
+			after: map[string]interface{}{
+				"new_attr": "value",
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"new_attr": {Optional: true},
+				},
+			},
+			expected: map[string]interface{}{
+				"new_attr": "value",
+			},
+		},
+		{
+			name:   "empty after - returns nil",
+			before: map[string]interface{}{"name": "test"},
+			after:  map[string]interface{}{},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"name": {Required: true},
+				},
+			},
+			expected: nil,
+		},
+		{
+			name: "single block unchanged entirely - skipped",
+			before: map[string]interface{}{
+				"os_disk": map[string]interface{}{
+					"caching": "ReadOnly",
+				},
+			},
+			after: map[string]interface{}{
+				"os_disk": map[string]interface{}{
+					"caching": "ReadOnly",
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching": {Required: true},
+							},
+						},
+					},
+				},
+			},
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := deepDiffBlock(tt.before, tt.after, tt.schema)
+			if !deepEqual(got, tt.expected) {
+				t.Errorf("deepDiffBlock() =\n  %v\nwant:\n  %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestToBlockWithBeforeAttrs(t *testing.T) {
+	tests := []struct {
+		name     string
+		change   DriftChange
+		schema   *tfjson.SchemaBlock
+		expected string
+	}{
+		{
+			name: "minimal diff for single nested block",
+			change: DriftChange{
+				ResourceType: "azurerm_linux_virtual_machine",
+				ResourceName: "vm",
+				BeforeAttrs: map[string]interface{}{
+					"os_disk": map[string]interface{}{
+						"caching":      "ReadOnly",
+						"disk_size_gb": float64(30),
+						"diff_disk_settings": map[string]interface{}{
+							"option":    "Local",
+							"placement": "CacheDisk",
+						},
+					},
+				},
+				ChangedAttrs: map[string]interface{}{
+					"os_disk": map[string]interface{}{
+						"caching":      "ReadOnly",
+						"disk_size_gb": float64(30),
+						"diff_disk_settings": map[string]interface{}{
+							"option":    "None",
+							"placement": "CacheDisk",
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching":      {Optional: true},
+								"disk_size_gb": {Optional: true},
+							},
+							NestedBlocks: map[string]*tfjson.SchemaBlockType{
+								"diff_disk_settings": {
+									NestingMode: tfjson.SchemaNestingModeList,
+									Block: &tfjson.SchemaBlock{
+										Attributes: map[string]*tfjson.SchemaAttribute{
+											"option":    {Required: true},
+											"placement": {Optional: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_linux_virtual_machine" "vm" {
+  os_disk {
+    diff_disk_settings {
+      option = "None"
+    }
+  }
+}
+`,
+		},
+		{
+			name: "multiple blocks still capture full array with _graft removal",
+			change: DriftChange{
+				ResourceType: "azurerm_network_security_group",
+				ResourceName: "nsg",
+				BeforeAttrs: map[string]interface{}{
+					"security_rule": []interface{}{
+						map[string]interface{}{"name": "rule1"},
+					},
+				},
+				ChangedAttrs: map[string]interface{}{
+					"security_rule": []interface{}{
+						map[string]interface{}{"name": "rule1"},
+						map[string]interface{}{"name": "rule2"},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"security_rule": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"name": {Required: true},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_network_security_group" "nsg" {
+  security_rule {
+    name = "rule1"
+  }
+  security_rule {
+    name = "rule2"
+  }
+  _graft {
+    remove = ["security_rule"]
+  }
+}
+`,
+		},
+		{
+			name: "mixed: changed scalar + unchanged block = only scalar in output",
+			change: DriftChange{
+				ResourceType: "azurerm_linux_virtual_machine",
+				ResourceName: "vm",
+				BeforeAttrs: map[string]interface{}{
+					"name": "old-name",
+					"os_disk": map[string]interface{}{
+						"caching": "ReadOnly",
+					},
+				},
+				ChangedAttrs: map[string]interface{}{
+					"name": "new-name",
+					"os_disk": map[string]interface{}{
+						"caching": "ReadOnly",
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"name": {Required: true},
+				},
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching": {Required: true},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_linux_virtual_machine" "vm" {
+  name = "new-name"
+}
+`,
+		},
+		{
+			name: "nil BeforeAttrs - no deep diff applied, full output",
+			change: DriftChange{
+				ResourceType: "azurerm_linux_virtual_machine",
+				ResourceName: "vm",
+				BeforeAttrs:  nil,
+				ChangedAttrs: map[string]interface{}{
+					"os_disk": map[string]interface{}{
+						"caching":      "ReadOnly",
+						"disk_size_gb": float64(30),
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching":      {Optional: true},
+								"disk_size_gb": {Optional: true},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_linux_virtual_machine" "vm" {
+  os_disk {
+    caching      = "ReadOnly"
+    disk_size_gb = 30
+  }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			block := tt.change.ToBlock(tt.schema)
+			if tt.expected == "" {
+				if block != nil {
+					t.Errorf("expected nil block, got non-nil")
+				}
+				return
+			}
+			if block == nil {
+				t.Fatal("expected non-nil block, got nil")
+			}
+
+			f := hclwrite.NewEmptyFile()
+			f.Body().AppendBlock(block)
+			result := string(hclwrite.Format(f.Bytes()))
+
+			if result != tt.expected {
+				t.Errorf("unexpected output:\n got:\n%s\nwant:\n%s", result, tt.expected)
+			}
+		})
+	}
+}
+
 func TestInterfaceToCtyValueConversions(t *testing.T) {
 	tests := []struct {
 		name     string
