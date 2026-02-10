@@ -1,7 +1,7 @@
 {
   "format_version": "1.2",
   "terraform_version": "1.14.0",
-  "resource_drift": [
+  "resource_changes": [
     {
       "address": "azurerm_resource_group.test",
       "mode": "managed",
@@ -18,7 +18,10 @@
           "managed_by": "",
           "name": "graft-absorb-test-rg",
           "tags": {
-            "environment": "test",
+            "Creator": "user@example.com",
+            "DateCreated": "2026-02-06T13:39:05Z",
+            "environment": "production",
+            "owner": "drifttest",
             "project": "graft"
           },
           "timeouts": null
@@ -29,10 +32,7 @@
           "managed_by": "",
           "name": "graft-absorb-test-rg",
           "tags": {
-            "Creator": "user@example.com",
-            "DateCreated": "2026-02-06T13:39:05Z",
-            "environment": "production",
-            "owner": "drifttest",
+            "environment": "test",
             "project": "graft"
           },
           "timeouts": null
@@ -46,6 +46,5 @@
         }
       }
     }
-  ],
-  "resource_changes": []
+  ]
 }
