@@ -62,6 +62,28 @@ Drift in resources inside modules (including nested modules).
 
 ---
 
+## Out of Scope
+
+The following cases produce an `update` action in the plan but are **not**
+absorb targets. They represent the config wanting to *add* something the cloud
+doesn't have — the opposite of drift.
+
+- **Map keys removed remotely** (e.g., all `tags` cleared in the cloud).
+  The plan wants to push config values back. `graft absorb` has nothing to
+  capture because the cloud state is empty. Fix: re-apply or remove the
+  declaration from config.
+
+- **Nested block removed remotely** (e.g., `delete_retention_policy` disabled
+  in the cloud). The plan wants to re-create the block. `graft absorb` has
+  nothing to capture because the cloud state has no block. Fix: re-apply or
+  remove the block from config.
+
+In general, `graft absorb` captures what the cloud *has* that differs from
+config. It does not override config to *remove* things you intentionally
+declared.
+
+---
+
 ## TODO
 
 ### 5. `count`-Indexed Resource Drift
