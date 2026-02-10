@@ -332,6 +332,65 @@ func TestToBlock(t *testing.T) {
       enabled           = false
     }
   }
+  _graft {
+    remove = ["backend_http_settings.connection_draining"]
+  }
+}
+`,
+		},
+		{
+			name: "nested list blocks inside single block trigger dotted-path removal",
+			change: DriftChange{
+				ResourceType: "azurerm_application_gateway",
+				ResourceName: "gw",
+				ChangedAttrs: map[string]interface{}{
+					"backend_http_settings": map[string]interface{}{
+						"name": "settings1",
+						"connection_draining": []interface{}{
+							map[string]interface{}{"enabled": true, "drain_timeout_sec": float64(30)},
+							map[string]interface{}{"enabled": false, "drain_timeout_sec": float64(60)},
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"backend_http_settings": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"name": {Required: true},
+							},
+							NestedBlocks: map[string]*tfjson.SchemaBlockType{
+								"connection_draining": {
+									NestingMode: tfjson.SchemaNestingModeList,
+									Block: &tfjson.SchemaBlock{
+										Attributes: map[string]*tfjson.SchemaAttribute{
+											"enabled":           {Required: true},
+											"drain_timeout_sec": {Required: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_application_gateway" "gw" {
+  backend_http_settings {
+    connection_draining {
+      drain_timeout_sec = 30
+      enabled           = true
+    }
+    connection_draining {
+      drain_timeout_sec = 60
+      enabled           = false
+    }
+    name = "settings1"
+  }
+  _graft {
+    remove = ["backend_http_settings.connection_draining"]
+  }
 }
 `,
 		},

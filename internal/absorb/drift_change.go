@@ -60,6 +60,10 @@ func (change DriftChange) ToBlock(schema *tfjson.SchemaBlock) *hclwrite.Block {
 			}
 			if len(blocks) > 1 {
 				removals = append(removals, key)
+			} else if len(blocks) == 1 {
+				// Single block — check for nested multi-blocks that need removal
+				nestedRemovals := collectNestedRemovals(key, blocks[0])
+				removals = append(removals, nestedRemovals...)
 			}
 		} else {
 			ctyVal := interfaceToCtyValue(value)
@@ -79,6 +83,35 @@ func (change DriftChange) ToBlock(schema *tfjson.SchemaBlock) *hclwrite.Block {
 	}
 
 	return resBlock
+}
+
+// collectNestedRemovals inspects the child blocks of a single HCL block to find
+// block types that appear more than once, returning their dotted paths (e.g.
+// "backend_http_settings.connection_draining"). It recurses into block types
+// that appear exactly once to discover deeply nested multi-blocks.
+func collectNestedRemovals(prefix string, block *hclwrite.Block) []string {
+	// Count occurrences of each child block type
+	counts := make(map[string]int)
+	for _, child := range block.Body().Blocks() {
+		counts[child.Type()]++
+	}
+
+	var removals []string
+	visited := make(map[string]bool)
+	for _, child := range block.Body().Blocks() {
+		blockType := child.Type()
+		if visited[blockType] {
+			continue
+		}
+		visited[blockType] = true
+		path := prefix + "." + blockType
+		if counts[blockType] > 1 {
+			removals = append(removals, path)
+		} else {
+			removals = append(removals, collectNestedRemovals(path, child)...)
+		}
+	}
+	return removals
 }
 
 func toBlocks(blockName string, value interface{}, schema *tfjson.SchemaBlock) []*hclwrite.Block {
