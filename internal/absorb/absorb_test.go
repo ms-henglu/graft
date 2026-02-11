@@ -302,3 +302,198 @@ func TestParsePlanFileInvalidJSON(t *testing.T) {
 		t.Errorf("expected 'failed to parse plan JSON' error, got: %v", err)
 	}
 }
+
+func TestParsePlanFileCountIndexed(t *testing.T) {
+	planJSON := `{
+		"format_version": "1.0",
+		"terraform_version": "1.5.0",
+		"resource_changes": [
+			{
+				"address": "azurerm_resource_group.main[0]",
+				"mode": "managed",
+				"type": "azurerm_resource_group",
+				"name": "main",
+				"index": 0,
+				"provider_name": "registry.terraform.io/hashicorp/azurerm",
+				"change": {
+					"actions": ["update"],
+					"before": { "tags": { "env": "dev" } },
+					"after": { "tags": { "env": "prod" } }
+				}
+			},
+			{
+				"address": "azurerm_resource_group.main[1]",
+				"mode": "managed",
+				"type": "azurerm_resource_group",
+				"name": "main",
+				"index": 1,
+				"provider_name": "registry.terraform.io/hashicorp/azurerm",
+				"change": {
+					"actions": ["update"],
+					"before": { "tags": { "env": "staging" } },
+					"after": { "tags": { "env": "production" } }
+				}
+			}
+		]
+	}`
+
+	tmpDir := t.TempDir()
+	planFile := filepath.Join(tmpDir, "plan.json")
+	if err := os.WriteFile(planFile, []byte(planJSON), 0644); err != nil {
+		t.Fatalf("Failed to write plan file: %v", err)
+	}
+
+	result, err := ParsePlanFile(planFile)
+	if err != nil {
+		t.Fatalf("ParsePlanFile failed: %v", err)
+	}
+
+	if len(result) != 2 {
+		t.Fatalf("expected 2 changes, got %d", len(result))
+	}
+
+	// Verify first change
+	if result[0].Address != "azurerm_resource_group.main[0]" {
+		t.Errorf("expected address 'azurerm_resource_group.main[0]', got '%s'", result[0].Address)
+	}
+	if !result[0].IsCountIndexed() {
+		t.Error("expected first change to be count-indexed")
+	}
+	if result[0].indexKey() != "0" {
+		t.Errorf("expected indexKey '0', got '%s'", result[0].indexKey())
+	}
+	if result[0].ResourceName != "main" {
+		t.Errorf("expected resource name 'main', got '%s'", result[0].ResourceName)
+	}
+
+	// Verify second change
+	if result[1].Address != "azurerm_resource_group.main[1]" {
+		t.Errorf("expected address 'azurerm_resource_group.main[1]', got '%s'", result[1].Address)
+	}
+	if !result[1].IsCountIndexed() {
+		t.Error("expected second change to be count-indexed")
+	}
+	if result[1].indexKey() != "1" {
+		t.Errorf("expected indexKey '1', got '%s'", result[1].indexKey())
+	}
+}
+
+func TestParsePlanFileForEachIndexed(t *testing.T) {
+	planJSON := `{
+		"format_version": "1.0",
+		"terraform_version": "1.5.0",
+		"resource_changes": [
+			{
+				"address": "azurerm_resource_group.main[\"web\"]",
+				"mode": "managed",
+				"type": "azurerm_resource_group",
+				"name": "main",
+				"index": "web",
+				"provider_name": "registry.terraform.io/hashicorp/azurerm",
+				"change": {
+					"actions": ["update"],
+					"before": { "location": "westus" },
+					"after": { "location": "eastus" }
+				}
+			},
+			{
+				"address": "azurerm_resource_group.main[\"api\"]",
+				"mode": "managed",
+				"type": "azurerm_resource_group",
+				"name": "main",
+				"index": "api",
+				"provider_name": "registry.terraform.io/hashicorp/azurerm",
+				"change": {
+					"actions": ["update"],
+					"before": { "location": "westus2" },
+					"after": { "location": "eastus2" }
+				}
+			}
+		]
+	}`
+
+	tmpDir := t.TempDir()
+	planFile := filepath.Join(tmpDir, "plan.json")
+	if err := os.WriteFile(planFile, []byte(planJSON), 0644); err != nil {
+		t.Fatalf("Failed to write plan file: %v", err)
+	}
+
+	result, err := ParsePlanFile(planFile)
+	if err != nil {
+		t.Fatalf("ParsePlanFile failed: %v", err)
+	}
+
+	if len(result) != 2 {
+		t.Fatalf("expected 2 changes, got %d", len(result))
+	}
+
+	if !result[0].IsForEachIndexed() {
+		t.Error("expected first change to be for_each-indexed")
+	}
+	if result[0].indexKey() != "web" {
+		t.Errorf("expected indexKey 'web', got '%s'", result[0].indexKey())
+	}
+	if result[0].indexRef() != "each.key" {
+		t.Errorf("expected indexRef 'each.key', got '%s'", result[0].indexRef())
+	}
+
+	if !result[1].IsForEachIndexed() {
+		t.Error("expected second change to be for_each-indexed")
+	}
+	if result[1].indexKey() != "api" {
+		t.Errorf("expected indexKey 'api', got '%s'", result[1].indexKey())
+	}
+}
+
+func TestDriftChangeHelpers(t *testing.T) {
+	t.Run("non-indexed", func(t *testing.T) {
+		c := DriftChange{Index: nil}
+		if c.IsIndexed() {
+			t.Error("expected not indexed")
+		}
+		if c.IsCountIndexed() {
+			t.Error("expected not count indexed")
+		}
+		if c.IsForEachIndexed() {
+			t.Error("expected not for_each indexed")
+		}
+	})
+
+	t.Run("count-indexed", func(t *testing.T) {
+		c := DriftChange{Index: float64(2)}
+		if !c.IsIndexed() {
+			t.Error("expected indexed")
+		}
+		if !c.IsCountIndexed() {
+			t.Error("expected count indexed")
+		}
+		if c.IsForEachIndexed() {
+			t.Error("expected not for_each indexed")
+		}
+		if c.indexKey() != "2" {
+			t.Errorf("expected indexKey '2', got '%s'", c.indexKey())
+		}
+		if c.indexRef() != "count.index" {
+			t.Errorf("expected indexRef 'count.index', got '%s'", c.indexRef())
+		}
+	})
+
+	t.Run("for_each-indexed", func(t *testing.T) {
+		c := DriftChange{Index: "mykey"}
+		if !c.IsIndexed() {
+			t.Error("expected indexed")
+		}
+		if c.IsCountIndexed() {
+			t.Error("expected not count indexed")
+		}
+		if !c.IsForEachIndexed() {
+			t.Error("expected for_each indexed")
+		}
+		if c.indexKey() != "mykey" {
+			t.Errorf("expected indexKey 'mykey', got '%s'", c.indexKey())
+		}
+		if c.indexRef() != "each.key" {
+			t.Errorf("expected indexRef 'each.key', got '%s'", c.indexRef())
+		}
+	})
+}

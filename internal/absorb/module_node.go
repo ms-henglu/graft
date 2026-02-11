@@ -3,6 +3,7 @@ package absorb
 import (
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
@@ -62,7 +63,20 @@ func (m *ModuleItem) ToHCL(providerSchemas *tfjson.ProviderSchemas) hclwrite.Tok
 			return m.Changes[i].ResourceName < m.Changes[j].ResourceName
 		})
 
+		// Separate indexed and non-indexed changes
+		var nonIndexed []DriftChange
+		indexedGroups := make(map[string][]DriftChange) // keyed by "type.name"
+
 		for _, change := range m.Changes {
+			if change.IsIndexed() {
+				indexedGroups[change.resourceKey()] = append(indexedGroups[change.resourceKey()], change)
+			} else {
+				nonIndexed = append(nonIndexed, change)
+			}
+		}
+
+		// Render non-indexed changes as before
+		for _, change := range nonIndexed {
 			schema := lookupResourceSchema(providerSchemas, change.ProviderName, change.ResourceType)
 			block := change.ToBlock(schema)
 			if block == nil {
@@ -70,6 +84,32 @@ func (m *ModuleItem) ToHCL(providerSchemas *tfjson.ProviderSchemas) hclwrite.Tok
 			}
 			overrideBody.AppendUnstructuredTokens(hclwrite.Tokens{
 				{Type: hclsyntax.TokenComment, Bytes: []byte(fmt.Sprintf("# Absorb drift for: %s\n", change.Address))},
+			})
+			overrideBody.AppendBlock(block)
+			overrideBody.AppendNewline()
+		}
+
+		// Render indexed groups using lookup()
+		var sortedKeys []string
+		for key := range indexedGroups {
+			sortedKeys = append(sortedKeys, key)
+		}
+		sort.Strings(sortedKeys)
+		for _, key := range sortedKeys {
+			group := indexedGroups[key]
+			schema := lookupResourceSchema(providerSchemas, group[0].ProviderName, group[0].ResourceType)
+			block := IndexedChangesToBlock(group, schema)
+			if block == nil {
+				continue
+			}
+
+			// Build comment listing all addresses
+			var addresses []string
+			for _, change := range group {
+				addresses = append(addresses, change.Address)
+			}
+			overrideBody.AppendUnstructuredTokens(hclwrite.Tokens{
+				{Type: hclsyntax.TokenComment, Bytes: []byte(fmt.Sprintf("# Absorb drift for: %s\n", strings.Join(addresses, ", ")))},
 			})
 			overrideBody.AppendBlock(block)
 			overrideBody.AppendNewline()

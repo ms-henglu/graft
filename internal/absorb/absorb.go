@@ -55,6 +55,7 @@ func ParsePlanFile(planPath string) ([]DriftChange, error) {
 			ResourceName: rc.Name,
 			ProviderName: rc.ProviderName,
 			Mode:         string(rc.Mode),
+			Index:        rc.Index,
 			ChangedAttrs: changedAttrs,
 			BeforeAttrs:  desiredConfig,
 		}
