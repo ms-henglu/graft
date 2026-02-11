@@ -1,0 +1,50 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.14.0",
+  "resource_changes": [
+    {
+      "address": "azurerm_resource_group.test",
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "test",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": [
+          "update"
+        ],
+        "before": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-test-rg",
+          "location": "eastus",
+          "managed_by": "",
+          "name": "graft-absorb-test-rg",
+          "tags": {
+            "Creator": "user@example.com",
+            "DateCreated": "2026-02-06T13:39:05Z",
+            "environment": "production",
+            "owner": "drifttest",
+            "project": "graft"
+          },
+          "timeouts": null
+        },
+        "after": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-test-rg",
+          "location": "eastus",
+          "managed_by": "",
+          "name": "graft-absorb-test-rg",
+          "tags": {
+            "environment": "test",
+            "project": "graft"
+          },
+          "timeouts": null
+        },
+        "after_unknown": {},
+        "before_sensitive": {
+          "tags": {}
+        },
+        "after_sensitive": {
+          "tags": {}
+        }
+      }
+    }
+  ]
+}

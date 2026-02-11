@@ -64,6 +64,8 @@ Check out the [examples](./examples) directory for practical scenarios:
 *   [Lifecycle: Prevent Destroy](./examples/09-lifecycle-prevent-destroy)
 *   [Mark Values as Sensitive](./examples/10-mark-as-sensitive)
 *   [Nested Block Override](./examples/11-multi-block-resource)
+*   [Absorb Tag Drift](./examples/12-absorb-tag-drift)
+*   [Absorb Security Rule Drift](./examples/13-absorb-security-rule-drift)
 
 ---
 
@@ -162,6 +164,46 @@ You can also scaffold for a specific module:
 ```bash
 graft scaffold linux_servers.os
 ```
+
+### **`absorb`**
+Absorbs drift from a Terraform plan into a graft manifest (`absorb.graft.hcl`).
+
+This command analyzes a Terraform plan JSON file to identify resources with "update" actions (drift) and generates override blocks to match the current remote state. When a providers schema is available, it improves the accuracy of the generated configuration.
+
+```bash
+# Workflow:
+# 1. Generate a plan and convert to JSON
+terraform plan -out=tfplan
+terraform show -json tfplan > plan.json
+
+# 2. Absorb drift into a graft manifest
+graft absorb plan.json
+
+[+] Fetching providers schema...
+[+] Reading Terraform plan JSON...
+[+] Found 2 resource(s) with drift...
+    - azurerm_resource_group.test
+    - azurerm_network_security_group.test
+[+] Generating manifest...
+✨ Manifest saved to ./absorb.graft.hcl
+
+# 3. Build and verify
+graft build
+terraform plan  # should show zero changes
+```
+
+You can also provide a pre-generated providers schema file:
+
+```bash
+terraform providers schema -json > providers.json
+graft absorb -p providers.json plan.json
+```
+
+*   **Behavior**:
+    1.  **Parse**: Reads the Terraform plan JSON and identifies resources with drift.
+    2.  **Generate**: Produces an `absorb.graft.hcl` manifest with override blocks that align the Terraform state with the current remote state.
+
+
 
 ### **`clean`**
 Cleans up graft artifacts and resets module redirection to upstream.
