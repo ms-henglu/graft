@@ -1,0 +1,66 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.9.0",
+  "resource_changes": [
+    {
+      "address": "azurerm_resource_group.main[\"web\"]",
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "main",
+      "index": "web",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000/resourceGroups/rg-web",
+          "location": "eastus",
+          "name": "rg-web",
+          "tags": {
+            "environment": "production",
+            "owner": "webteam",
+            "project": "graft"
+          }
+        },
+        "after": {
+          "id": "/subscriptions/00000000/resourceGroups/rg-web",
+          "location": "eastus",
+          "name": "rg-web",
+          "tags": {
+            "environment": "dev",
+            "project": "graft"
+          }
+        }
+      }
+    },
+    {
+      "address": "azurerm_resource_group.main[\"api\"]",
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "main",
+      "index": "api",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000/resourceGroups/rg-api",
+          "location": "eastus",
+          "name": "rg-api",
+          "tags": {
+            "environment": "staging",
+            "owner": "apiteam",
+            "project": "graft"
+          }
+        },
+        "after": {
+          "id": "/subscriptions/00000000/resourceGroups/rg-api",
+          "location": "eastus",
+          "name": "rg-api",
+          "tags": {
+            "environment": "dev",
+            "project": "graft"
+          }
+        }
+      }
+    }
+  ]
+}

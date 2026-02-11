@@ -84,18 +84,82 @@ declared.
 
 ---
 
+### 5. `count`-Indexed Resource Drift (Category 1)
+
+Resources using `count` (e.g., `azurerm_resource_group.main[0]`,
+`azurerm_resource_group.main[1]`).
+
+- All indexed instances of the same resource are grouped into a single
+  override block.
+- Root-level attribute drift uses a `lookup()` expression with `count.index`
+  as the selector and `graft.source` as the fallback:
+
+  ```hcl
+  tags = lookup({
+      0 = { environment = "production", owner = "drifttest" }
+      1 = { environment = "staging",    owner = "drifttest" }
+  }, count.index, graft.source)
+  ```
+
+- Instances without drift for a given attribute are handled by the
+  `graft.source` fallback, which preserves the original config value.
+
+✅ Supported for Category 1 (root-level attributes). See [Example 14](../../examples/14-absorb-indexed-drift).
+
+---
+
+### 6. `for_each`-Indexed Resource Drift (Category 1)
+
+Resources using `for_each` (e.g., `azurerm_resource_group.main["web"]`,
+`azurerm_resource_group.main["api"]`).
+
+- Same grouping and `lookup()` approach as `count`, but uses `each.key`
+  as the selector and quoted string keys in the map:
+
+  ```hcl
+  tags = lookup({
+      "api" = { environment = "staging", owner = "apiteam" }
+      "web" = { environment = "production", owner = "webteam" }
+  }, each.key, graft.source)
+  ```
+
+- Partial drift uses `graft.source` fallback for un-drifted instances.
+
+✅ Supported for Category 1 (root-level attributes). See [Example 14](../../examples/14-absorb-indexed-drift).
+
+---
+
 ## TODO
 
-### 5. `count`-Indexed Resource Drift
+### 7. Block Drift for Indexed Resources (Category 2/3)
 
-Resources using `count` (e.g., `azurerm_resource_group.main[0]`).
+Category 2 (single nested block) and Category 3 (multiple sibling blocks)
+drift within `count`/`for_each` resources is not yet supported with
+per-instance differentiation.
 
-- Support category 1–3 drift types for each indexed instance.
+**Proposed approach — `dynamic` blocks with `lookup()`:**
 
-### 6. `for_each`-Indexed Resource Drift
+For block-type attributes that differ across indexed instances, replace static
+blocks with `dynamic` blocks that select content per-instance:
 
-Resources using `for_each` (e.g., `azurerm_resource_group.main["key"]`).
+```hcl
+dynamic "security_rule" {
+    for_each = lookup({
+        0 = [{ name = "rule-a", priority = 100 }]
+        1 = [{ name = "rule-b", priority = 200 }]
+    }, count.index, [])
+    content {
+        name     = security_rule.value.name
+        priority = security_rule.value.priority
+    }
+}
+```
 
-- Support category 1–3 drift types for each keyed instance.
+**Open problem:** The `graft.source` fallback cannot be used with `dynamic`
+block `for_each` because the original source has static blocks (not a list
+expression). A different fallback mechanism is needed.
+
+**Current behavior:** When block drift occurs on indexed resources, blocks from
+the first instance are emitted (lossy). This is a known limitation.
 
 ---

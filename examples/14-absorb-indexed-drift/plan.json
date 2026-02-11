@@ -1,0 +1,136 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.14.0",
+  "resource_changes": [
+    {
+      "address": "azurerm_resource_group.env[0]",
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "env",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-0-rg",
+          "location": "eastus",
+          "name": "graft-absorb-0-rg",
+          "tags": {
+            "environment": "production",
+            "owner": "drifttest",
+            "project": "graft"
+          }
+        },
+        "after": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-0-rg",
+          "location": "eastus",
+          "name": "graft-absorb-0-rg",
+          "tags": {
+            "environment": "test",
+            "project": "graft"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": { "tags": {} },
+        "after_sensitive": { "tags": {} }
+      }
+    },
+    {
+      "address": "azurerm_resource_group.env[1]",
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "env",
+      "index": 1,
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-1-rg",
+          "location": "eastus",
+          "name": "graft-absorb-1-rg",
+          "tags": {
+            "environment": "staging",
+            "owner": "drifttest",
+            "project": "graft"
+          }
+        },
+        "after": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-1-rg",
+          "location": "eastus",
+          "name": "graft-absorb-1-rg",
+          "tags": {
+            "environment": "test",
+            "project": "graft"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": { "tags": {} },
+        "after_sensitive": { "tags": {} }
+      }
+    },
+    {
+      "address": "azurerm_resource_group.team[\"api\"]",
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "team",
+      "index": "api",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-api-rg",
+          "location": "westus",
+          "name": "graft-absorb-api-rg",
+          "tags": {
+            "team": "api",
+            "project": "graft"
+          }
+        },
+        "after": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-api-rg",
+          "location": "eastus",
+          "name": "graft-absorb-api-rg",
+          "tags": {
+            "team": "api",
+            "project": "graft"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": { "tags": {} },
+        "after_sensitive": { "tags": {} }
+      }
+    },
+    {
+      "address": "azurerm_resource_group.team[\"web\"]",
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "team",
+      "index": "web",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-web-rg",
+          "location": "centralus",
+          "name": "graft-absorb-web-rg",
+          "tags": {
+            "team": "web",
+            "project": "graft"
+          }
+        },
+        "after": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-web-rg",
+          "location": "eastus",
+          "name": "graft-absorb-web-rg",
+          "tags": {
+            "team": "web",
+            "project": "graft"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": { "tags": {} },
+        "after_sensitive": { "tags": {} }
+      }
+    }
+  ]
+}

@@ -24,3 +24,4 @@ This directory contains a series of practical examples demonstrating how to use 
 |---|---------|-------------|
 | 12 | [Absorb Tag Drift](./12-absorb-tag-drift) | Auto-generate a graft manifest when resource group tags are changed outside Terraform (e.g., via Azure CLI or Azure Policy). |
 | 13 | [Absorb Security Rule Drift](./13-absorb-security-rule-drift) | Absorb NSG security rule drift, demonstrating how `graft absorb` handles the attribute-as-block pattern with automatic `_graft { remove }` generation. |
+| 14 | [Absorb Indexed Resource Drift](./14-absorb-indexed-drift) | Absorb drift on `count` and `for_each` resources, demonstrating how `graft absorb` groups instances and generates `lookup()` expressions with `count.index`/`each.key`. |
