@@ -9,7 +9,7 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 )
 
-// GenerateManifest creates a manifest.graft.hcl from the absorb result.
+// GenerateManifest creates an absorb.graft.hcl from the absorb result.
 // If schemasPath is provided, it loads the provider schemas to correctly render
 // nested blocks vs attributes and to filter out computed-only attributes.
 func GenerateManifest(changes []DriftChange, schemasPath string) ([]byte, error) {
