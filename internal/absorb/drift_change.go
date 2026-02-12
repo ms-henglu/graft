@@ -353,8 +353,18 @@ func (change DriftChange) resourceKey() string {
 //
 //	attr = lookup({ idx1 = val1, idx2 = val2 }, count.index/each.key, graft.source)
 //
-// Category 2/3 (block drift) is not yet supported for indexed resources and falls
-// back to emitting blocks from the first change (lossy).
+// For Category 2/3 (block drift), dynamic blocks with per-instance lookup() are
+// generated so each indexed instance can have its own block content:
+//
+//	dynamic "block_name" {
+//	    for_each = lookup({
+//	        0 = [{ attr = val1 }]
+//	        1 = [{ attr = val2 }]
+//	    }, count.index, [])
+//	    content {
+//	        attr = block_name.value.attr
+//	    }
+//	}
 func IndexedChangesToBlock(changes []DriftChange, schema *tfjson.SchemaBlock) *hclwrite.Block {
 	if len(changes) == 0 {
 		return nil
@@ -363,20 +373,35 @@ func IndexedChangesToBlock(changes []DriftChange, schema *tfjson.SchemaBlock) *h
 	first := changes[0]
 	indexRef := first.indexRef()
 
-	// Pre-process each change: filter computed attrs and compute deep diff
+	// Pre-process each change: filter computed attrs and compute deep diff.
+	// For block-type keys, save the full (pre-deepDiff) values since dynamic
+	// blocks need the complete block content to replace the original static blocks.
 	var processed []DriftChange
+	blockValuesByIndex := make(map[string]map[string]interface{})
+
 	for _, change := range changes {
 		result := filterComputedAttrs(change.ChangedAttrs, schema, "")
 		attrs, _ := result.(map[string]interface{})
 		if len(attrs) == 0 {
 			continue
 		}
+
+		// Save full block values before deep diff
+		fullBlockVals := make(map[string]interface{})
+		for key, val := range attrs {
+			if shouldRenderAsBlock(schema, key) {
+				fullBlockVals[key] = deepCopyValue(val)
+			}
+		}
+
 		if change.BeforeAttrs != nil && schema != nil {
 			attrs = deepDiffBlock(change.BeforeAttrs, attrs, schema)
 			if len(attrs) == 0 {
 				continue
 			}
 		}
+
+		blockValuesByIndex[change.indexKey()] = fullBlockVals
 		change.ChangedAttrs = attrs
 		processed = append(processed, change)
 	}
@@ -397,13 +422,11 @@ func IndexedChangesToBlock(changes []DriftChange, schema *tfjson.SchemaBlock) *h
 	}
 	sort.Strings(sortedKeys)
 
-	// Check if any key is a block type — those are not yet supported with lookup
-	hasBlockDrift := false
+	// Separate block-type and plain attribute keys
 	var blockKeys []string
 	var attrKeys []string
 	for _, key := range sortedKeys {
 		if shouldRenderAsBlock(schema, key) {
-			hasBlockDrift = true
 			blockKeys = append(blockKeys, key)
 		} else {
 			attrKeys = append(attrKeys, key)
@@ -419,28 +442,13 @@ func IndexedChangesToBlock(changes []DriftChange, schema *tfjson.SchemaBlock) *h
 		resBody.SetAttributeRaw(key, tokens)
 	}
 
-	// Render block drift — fall back to first change's blocks (lossy, for now)
+	// Render block drift using dynamic blocks with per-instance lookup()
 	var removals []string
-	if hasBlockDrift {
-		for _, key := range blockKeys {
-			// Find first instance that has this block
-			for _, pc := range processed {
-				val, exists := pc.ChangedAttrs[key]
-				if !exists {
-					continue
-				}
-				blocks := toBlocks(key, val, schema)
-				for _, b := range blocks {
-					resBody.AppendBlock(b)
-				}
-				if len(blocks) > 1 {
-					removals = append(removals, key)
-				} else if len(blocks) == 1 {
-					nestedRemovals := collectNestedRemovals(key, blocks[0])
-					removals = append(removals, nestedRemovals...)
-				}
-				break
-			}
+	for _, key := range blockKeys {
+		dynBlock := buildDynamicBlock(key, processed, blockValuesByIndex, indexRef, first.IsCountIndexed(), schema)
+		if dynBlock != nil {
+			resBody.AppendBlock(dynBlock)
+			removals = append(removals, key)
 		}
 	}
 
@@ -456,6 +464,380 @@ func IndexedChangesToBlock(changes []DriftChange, schema *tfjson.SchemaBlock) *h
 	}
 
 	return resBlock
+}
+
+// buildDynamicBlock generates a dynamic block for per-instance block drift:
+//
+//	dynamic "block_name" {
+//	    for_each = lookup({
+//	        0 = [{ attr1 = val1 }]
+//	        1 = [{ attr1 = val2 }]
+//	    }, count.index, [])
+//	    content {
+//	        attr1 = block_name.value.attr1
+//	    }
+//	}
+func buildDynamicBlock(blockName string, changes []DriftChange, blockValuesByIndex map[string]map[string]interface{}, indexRef string, isCount bool, schema *tfjson.SchemaBlock) *hclwrite.Block {
+	// Filter changes that have drift for this block
+	var relevant []DriftChange
+	for _, change := range changes {
+		if _, exists := change.ChangedAttrs[blockName]; exists {
+			relevant = append(relevant, change)
+		}
+	}
+	if len(relevant) == 0 {
+		return nil
+	}
+
+	nestedSchema := nestedBlockSchema(schema, blockName)
+
+	// Collect all content keys across all instances' block values
+	contentKeys := collectBlockContentKeys(blockName, relevant, blockValuesByIndex)
+
+	dynBlock := hclwrite.NewBlock("dynamic", []string{blockName})
+	dynBody := dynBlock.Body()
+
+	// for_each = lookup({...}, indexRef, [])
+	forEachTokens := buildDynamicForEachTokens(blockName, relevant, blockValuesByIndex, indexRef, isCount, nestedSchema, contentKeys)
+	dynBody.SetAttributeRaw("for_each", forEachTokens)
+
+	// content { ... }
+	contentBlock := buildContentBlock(blockName, contentKeys, nestedSchema)
+	dynBody.AppendBlock(contentBlock)
+
+	return dynBlock
+}
+
+// collectBlockContentKeys collects all attribute keys that appear in any
+// instance's full block value for the given block name.
+func collectBlockContentKeys(blockName string, changes []DriftChange, blockValuesByIndex map[string]map[string]interface{}) []string {
+	keys := make(map[string]bool)
+	for _, change := range changes {
+		val := getFullBlockValue(blockName, change, blockValuesByIndex)
+		if val == nil {
+			continue
+		}
+		switch v := val.(type) {
+		case map[string]interface{}:
+			for k := range v {
+				keys[k] = true
+			}
+		case []interface{}:
+			for _, item := range v {
+				if m, ok := item.(map[string]interface{}); ok {
+					for k := range m {
+						keys[k] = true
+					}
+				}
+			}
+		}
+	}
+	var sorted []string
+	for k := range keys {
+		sorted = append(sorted, k)
+	}
+	sort.Strings(sorted)
+	return sorted
+}
+
+// getFullBlockValue returns the full (pre-deepDiff) block value for a change,
+// falling back to the deep-diffed value if the full value is not available.
+func getFullBlockValue(blockName string, change DriftChange, blockValuesByIndex map[string]map[string]interface{}) interface{} {
+	if fbv, ok := blockValuesByIndex[change.indexKey()]; ok {
+		if val, exists := fbv[blockName]; exists {
+			return val
+		}
+	}
+	return change.ChangedAttrs[blockName]
+}
+
+// buildDynamicForEachTokens generates HCL tokens for the for_each argument
+// of a dynamic block:
+//
+//	lookup({
+//	    0 = [{ attr1 = val1 }]
+//	    1 = [{ attr1 = val2 }]
+//	}, count.index, [])
+func buildDynamicForEachTokens(blockName string, changes []DriftChange, blockValuesByIndex map[string]map[string]interface{}, indexRef string, isCount bool, nestedSchema *tfjson.SchemaBlock, allContentKeys []string) hclwrite.Tokens {
+	var tokens hclwrite.Tokens
+
+	// lookup(
+	tokens = append(tokens,
+		&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte("lookup")},
+		&hclwrite.Token{Type: hclsyntax.TokenOParen, Bytes: []byte("(")},
+	)
+
+	// Opening brace for map
+	tokens = append(tokens,
+		&hclwrite.Token{Type: hclsyntax.TokenOBrace, Bytes: []byte("{")},
+		&hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte("\n")},
+	)
+
+	// Sort changes by index for deterministic output
+	sort.Slice(changes, func(i, j int) bool {
+		return changes[i].indexKey() < changes[j].indexKey()
+	})
+
+	allContentKeysSet := make(map[string]bool, len(allContentKeys))
+	for _, k := range allContentKeys {
+		allContentKeysSet[k] = true
+	}
+
+	for _, change := range changes {
+		val := getFullBlockValue(blockName, change, blockValuesByIndex)
+		if val == nil {
+			continue
+		}
+
+		idx := change.indexKey()
+
+		// Indent
+		tokens = append(tokens,
+			&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte("    ")},
+		)
+
+		// Key: for count use bare number, for for_each use quoted string
+		if isCount {
+			tokens = append(tokens,
+				&hclwrite.Token{Type: hclsyntax.TokenNumberLit, Bytes: []byte(idx)},
+			)
+		} else {
+			tokens = append(tokens,
+				&hclwrite.Token{Type: hclsyntax.TokenOQuote, Bytes: []byte("\"")},
+				&hclwrite.Token{Type: hclsyntax.TokenStringLit, Bytes: []byte(idx)},
+				&hclwrite.Token{Type: hclsyntax.TokenCQuote, Bytes: []byte("\"")},
+			)
+		}
+
+		// = value
+		tokens = append(tokens,
+			&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte(" ")},
+			&hclwrite.Token{Type: hclsyntax.TokenEqual, Bytes: []byte("=")},
+			&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte(" ")},
+		)
+
+		// Normalize the value: wrap single blocks in arrays, normalize nested blocks
+		normalizedVal := normalizeForDynamic(val, nestedSchema, allContentKeysSet)
+		valTokens := valueToTokens(normalizedVal)
+		tokens = append(tokens, valTokens...)
+
+		tokens = append(tokens,
+			&hclwrite.Token{Type: hclsyntax.TokenNewline, Bytes: []byte("\n")},
+		)
+	}
+
+	// Closing brace for map
+	tokens = append(tokens,
+		&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte("  ")},
+		&hclwrite.Token{Type: hclsyntax.TokenCBrace, Bytes: []byte("}")},
+	)
+
+	// , count.index/each.key
+	tokens = append(tokens,
+		&hclwrite.Token{Type: hclsyntax.TokenComma, Bytes: []byte(",")},
+		&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte(" ")},
+	)
+
+	// Render indexRef (count.index or each.key)
+	parts := strings.Split(indexRef, ".")
+	tokens = append(tokens,
+		&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte(parts[0])},
+		&hclwrite.Token{Type: hclsyntax.TokenDot, Bytes: []byte(".")},
+		&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte(parts[1])},
+	)
+
+	// , [])
+	tokens = append(tokens,
+		&hclwrite.Token{Type: hclsyntax.TokenComma, Bytes: []byte(",")},
+		&hclwrite.Token{Type: hclsyntax.TokenIdent, Bytes: []byte(" ")},
+		&hclwrite.Token{Type: hclsyntax.TokenOBrack, Bytes: []byte("[")},
+		&hclwrite.Token{Type: hclsyntax.TokenCBrack, Bytes: []byte("]")},
+		&hclwrite.Token{Type: hclsyntax.TokenCParen, Bytes: []byte(")")},
+	)
+
+	return tokens
+}
+
+// normalizeForDynamic prepares a block value for use in a dynamic block's
+// lookup map. Single blocks (maps) are wrapped in a single-element array.
+// Multiple blocks (arrays) are kept as-is. Nested blocks within maps are
+// recursively normalized. Missing keys from allKeys are filled with nil
+// to ensure consistent object shapes across all instances.
+func normalizeForDynamic(val interface{}, schema *tfjson.SchemaBlock, allKeys map[string]bool) interface{} {
+	switch v := val.(type) {
+	case map[string]interface{}:
+		normalized := normalizeMapForDynamic(v, schema, allKeys)
+		return []interface{}{normalized}
+	case []interface{}:
+		// For multiple blocks, collect all keys across elements
+		elementKeys := make(map[string]bool)
+		for _, item := range v {
+			if m, ok := item.(map[string]interface{}); ok {
+				for k := range m {
+					elementKeys[k] = true
+				}
+			}
+		}
+		result := make([]interface{}, len(v))
+		for i, item := range v {
+			if m, ok := item.(map[string]interface{}); ok {
+				result[i] = normalizeMapForDynamic(m, schema, elementKeys)
+			} else {
+				result[i] = item
+			}
+		}
+		return result
+	default:
+		return val
+	}
+}
+
+// normalizeMapForDynamic normalizes a single block map for dynamic block usage.
+// It filters empty strings, recursively normalizes nested blocks to array form,
+// and fills missing keys from allKeys with nil for consistent object shapes.
+func normalizeMapForDynamic(m map[string]interface{}, schema *tfjson.SchemaBlock, allKeys map[string]bool) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	for k, v := range m {
+		if v == nil {
+			continue
+		}
+		// Skip empty strings (matches toBlocks behavior)
+		if str, ok := v.(string); ok && str == "" {
+			continue
+		}
+		if schema != nil && shouldRenderAsBlock(schema, k) {
+			nestedSchema := nestedBlockSchema(schema, k)
+			result[k] = normalizeForDynamic(v, nestedSchema, nil)
+		} else {
+			result[k] = v
+		}
+	}
+
+	// Fill missing keys with nil for consistent object shapes
+	for k := range allKeys {
+		if _, exists := result[k]; !exists {
+			result[k] = nil
+		}
+	}
+
+	return result
+}
+
+// buildContentBlock generates the content block for a dynamic block, with
+// attribute references to blockName.value.attr for plain attributes and
+// nested dynamic blocks for block-type attributes.
+func buildContentBlock(blockName string, contentKeys []string, schema *tfjson.SchemaBlock) *hclwrite.Block {
+	contentBlock := hclwrite.NewBlock("content", nil)
+	contentBody := contentBlock.Body()
+
+	for _, key := range contentKeys {
+		if schema != nil && shouldRenderAsBlock(schema, key) {
+			// Nested block — generate nested dynamic block
+			nestedDyn := buildNestedDynamicBlock(blockName, key, schema)
+			if nestedDyn != nil {
+				contentBody.AppendBlock(nestedDyn)
+			}
+		} else {
+			// Simple attribute — reference blockName.value.key
+			contentBody.SetAttributeRaw(key, buildValueRefTokens(blockName, key))
+		}
+	}
+
+	return contentBlock
+}
+
+// buildValueRefTokens generates HCL tokens for: blockName.value.attrKey
+func buildValueRefTokens(blockName, attrKey string) hclwrite.Tokens {
+	return hclwrite.Tokens{
+		{Type: hclsyntax.TokenIdent, Bytes: []byte(blockName)},
+		{Type: hclsyntax.TokenDot, Bytes: []byte(".")},
+		{Type: hclsyntax.TokenIdent, Bytes: []byte("value")},
+		{Type: hclsyntax.TokenDot, Bytes: []byte(".")},
+		{Type: hclsyntax.TokenIdent, Bytes: []byte(attrKey)},
+	}
+}
+
+// buildNestedDynamicBlock generates a nested dynamic block within a content block:
+//
+//	dynamic "nested_block" {
+//	    for_each = try(parent.value.nested_block, [])
+//	    content {
+//	        attr = nested_block.value.attr
+//	    }
+//	}
+func buildNestedDynamicBlock(parentBlockName, nestedBlockName string, parentSchema *tfjson.SchemaBlock) *hclwrite.Block {
+	dynBlock := hclwrite.NewBlock("dynamic", []string{nestedBlockName})
+	dynBody := dynBlock.Body()
+
+	// for_each = try(parentBlockName.value.nestedBlockName, [])
+	forEachTokens := hclwrite.Tokens{
+		{Type: hclsyntax.TokenIdent, Bytes: []byte("try")},
+		{Type: hclsyntax.TokenOParen, Bytes: []byte("(")},
+		{Type: hclsyntax.TokenIdent, Bytes: []byte(parentBlockName)},
+		{Type: hclsyntax.TokenDot, Bytes: []byte(".")},
+		{Type: hclsyntax.TokenIdent, Bytes: []byte("value")},
+		{Type: hclsyntax.TokenDot, Bytes: []byte(".")},
+		{Type: hclsyntax.TokenIdent, Bytes: []byte(nestedBlockName)},
+		{Type: hclsyntax.TokenComma, Bytes: []byte(",")},
+		{Type: hclsyntax.TokenIdent, Bytes: []byte(" ")},
+		{Type: hclsyntax.TokenOBrack, Bytes: []byte("[")},
+		{Type: hclsyntax.TokenCBrack, Bytes: []byte("]")},
+		{Type: hclsyntax.TokenCParen, Bytes: []byte(")")},
+	}
+	dynBody.SetAttributeRaw("for_each", forEachTokens)
+
+	// content { ... }
+	nestedSchema := nestedBlockSchema(parentSchema, nestedBlockName)
+	contentBlock := hclwrite.NewBlock("content", nil)
+	contentBody := contentBlock.Body()
+
+	if nestedSchema != nil {
+		// Add attribute references from schema (excluding computed-only)
+		if nestedSchema.Attributes != nil {
+			var attrKeys []string
+			for key, attr := range nestedSchema.Attributes {
+				if !isComputedOnly(attr) {
+					attrKeys = append(attrKeys, key)
+				}
+			}
+			sort.Strings(attrKeys)
+			for _, key := range attrKeys {
+				contentBody.SetAttributeRaw(key, buildValueRefTokens(nestedBlockName, key))
+			}
+		}
+
+		// Recurse for deeper nested blocks
+		if nestedSchema.NestedBlocks != nil {
+			var nestedBlkKeys []string
+			for key := range nestedSchema.NestedBlocks {
+				nestedBlkKeys = append(nestedBlkKeys, key)
+			}
+			sort.Strings(nestedBlkKeys)
+			for _, key := range nestedBlkKeys {
+				deeperDyn := buildNestedDynamicBlock(nestedBlockName, key, nestedSchema)
+				if deeperDyn != nil {
+					contentBody.AppendBlock(deeperDyn)
+				}
+			}
+		}
+	}
+
+	dynBody.AppendBlock(contentBlock)
+	return dynBlock
+}
+
+// deepCopyValue creates a deep copy of a value to avoid mutation during processing.
+func deepCopyValue(val interface{}) interface{} {
+	data, err := json.Marshal(val)
+	if err != nil {
+		return val
+	}
+	var result interface{}
+	if err := json.Unmarshal(data, &result); err != nil {
+		return val
+	}
+	return result
 }
 
 // buildLookupTokens generates HCL tokens for:

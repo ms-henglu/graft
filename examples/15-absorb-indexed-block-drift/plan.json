@@ -1,0 +1,231 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.14.0",
+  "resource_changes": [
+    {
+      "address": "azurerm_network_security_group.nsg[0]",
+      "mode": "managed",
+      "type": "azurerm_network_security_group",
+      "name": "nsg",
+      "index": 0,
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000/resourceGroups/graft-test-rg/providers/Microsoft.Network/networkSecurityGroups/graft-absorb-0-nsg",
+          "location": "eastus",
+          "name": "graft-absorb-0-nsg",
+          "resource_group_name": "graft-test-rg",
+          "security_rule": [
+            {
+              "access": "Allow",
+              "destination_address_prefix": "*",
+              "destination_port_range": "22",
+              "direction": "Inbound",
+              "name": "allow-ssh",
+              "priority": 100,
+              "protocol": "Tcp",
+              "source_address_prefix": "10.0.0.0/8",
+              "source_port_range": "*"
+            },
+            {
+              "access": "Allow",
+              "destination_address_prefix": "*",
+              "destination_port_range": "443",
+              "direction": "Inbound",
+              "name": "allow-https",
+              "priority": 200,
+              "protocol": "Tcp",
+              "source_address_prefix": "10.0.0.0/8",
+              "source_port_range": "*"
+            }
+          ],
+          "tags": {
+            "environment": "production",
+            "project": "graft"
+          }
+        },
+        "after": {
+          "id": "/subscriptions/00000000/resourceGroups/graft-test-rg/providers/Microsoft.Network/networkSecurityGroups/graft-absorb-0-nsg",
+          "location": "eastus",
+          "name": "graft-absorb-0-nsg",
+          "resource_group_name": "graft-test-rg",
+          "security_rule": [
+            {
+              "access": "Allow",
+              "destination_address_prefix": "*",
+              "destination_port_range": "22",
+              "direction": "Inbound",
+              "name": "allow-ssh",
+              "priority": 100,
+              "protocol": "Tcp",
+              "source_address_prefix": "*",
+              "source_port_range": "*"
+            }
+          ],
+          "tags": {
+            "environment": "test",
+            "project": "graft"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": { "security_rule": [], "tags": {} },
+        "after_sensitive": { "security_rule": [], "tags": {} }
+      }
+    },
+    {
+      "address": "azurerm_network_security_group.nsg[1]",
+      "mode": "managed",
+      "type": "azurerm_network_security_group",
+      "name": "nsg",
+      "index": 1,
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000/resourceGroups/graft-test-rg/providers/Microsoft.Network/networkSecurityGroups/graft-absorb-1-nsg",
+          "location": "eastus",
+          "name": "graft-absorb-1-nsg",
+          "resource_group_name": "graft-test-rg",
+          "security_rule": [
+            {
+              "access": "Allow",
+              "destination_address_prefix": "*",
+              "destination_port_range": "80",
+              "direction": "Inbound",
+              "name": "allow-http",
+              "priority": 100,
+              "protocol": "Tcp",
+              "source_address_prefix": "10.0.0.0/8",
+              "source_port_range": "*"
+            },
+            {
+              "access": "Allow",
+              "destination_address_prefix": "*",
+              "destination_port_range": "443",
+              "direction": "Inbound",
+              "name": "allow-https",
+              "priority": 200,
+              "protocol": "Tcp",
+              "source_address_prefix": "10.0.0.0/8",
+              "source_port_range": "*"
+            },
+            {
+              "access": "Deny",
+              "destination_address_prefix": "*",
+              "destination_port_range": "*",
+              "direction": "Inbound",
+              "name": "deny-all",
+              "priority": 4096,
+              "protocol": "*",
+              "source_address_prefix": "*",
+              "source_port_range": "*"
+            }
+          ],
+          "tags": {
+            "environment": "staging",
+            "project": "graft"
+          }
+        },
+        "after": {
+          "id": "/subscriptions/00000000/resourceGroups/graft-test-rg/providers/Microsoft.Network/networkSecurityGroups/graft-absorb-1-nsg",
+          "location": "eastus",
+          "name": "graft-absorb-1-nsg",
+          "resource_group_name": "graft-test-rg",
+          "security_rule": [
+            {
+              "access": "Allow",
+              "destination_address_prefix": "*",
+              "destination_port_range": "22",
+              "direction": "Inbound",
+              "name": "allow-ssh",
+              "priority": 100,
+              "protocol": "Tcp",
+              "source_address_prefix": "*",
+              "source_port_range": "*"
+            }
+          ],
+          "tags": {
+            "environment": "test",
+            "project": "graft"
+          }
+        },
+        "after_unknown": {},
+        "before_sensitive": { "security_rule": [], "tags": {} },
+        "after_sensitive": { "security_rule": [], "tags": {} }
+      }
+    },
+    {
+      "address": "azurerm_linux_virtual_machine.vm[\"web\"]",
+      "mode": "managed",
+      "type": "azurerm_linux_virtual_machine",
+      "name": "vm",
+      "index": "web",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000/resourceGroups/graft-test-rg/providers/Microsoft.Compute/virtualMachines/graft-web-vm",
+          "name": "graft-web-vm",
+          "os_disk": [
+            {
+              "caching": "ReadWrite",
+              "disk_size_gb": 50,
+              "storage_account_type": "Premium_LRS"
+            }
+          ]
+        },
+        "after": {
+          "id": "/subscriptions/00000000/resourceGroups/graft-test-rg/providers/Microsoft.Compute/virtualMachines/graft-web-vm",
+          "name": "graft-web-vm",
+          "os_disk": [
+            {
+              "caching": "ReadOnly",
+              "disk_size_gb": 30,
+              "storage_account_type": "Standard_LRS"
+            }
+          ]
+        },
+        "after_unknown": {},
+        "before_sensitive": { "os_disk": [] },
+        "after_sensitive": { "os_disk": [] }
+      }
+    },
+    {
+      "address": "azurerm_linux_virtual_machine.vm[\"api\"]",
+      "mode": "managed",
+      "type": "azurerm_linux_virtual_machine",
+      "name": "vm",
+      "index": "api",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": ["update"],
+        "before": {
+          "id": "/subscriptions/00000000/resourceGroups/graft-test-rg/providers/Microsoft.Compute/virtualMachines/graft-api-vm",
+          "name": "graft-api-vm",
+          "os_disk": [
+            {
+              "caching": "ReadOnly",
+              "disk_size_gb": 64,
+              "storage_account_type": "StandardSSD_LRS"
+            }
+          ]
+        },
+        "after": {
+          "id": "/subscriptions/00000000/resourceGroups/graft-test-rg/providers/Microsoft.Compute/virtualMachines/graft-api-vm",
+          "name": "graft-api-vm",
+          "os_disk": [
+            {
+              "caching": "ReadOnly",
+              "disk_size_gb": 30,
+              "storage_account_type": "Standard_LRS"
+            }
+          ]
+        },
+        "after_unknown": {},
+        "before_sensitive": { "os_disk": [] },
+        "after_sensitive": { "os_disk": [] }
+      }
+    }
+  ]
+}
