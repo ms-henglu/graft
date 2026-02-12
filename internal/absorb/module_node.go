@@ -8,6 +8,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/ms-henglu/graft/internal/utils"
 )
 
 type ModuleItem struct {
@@ -65,11 +66,20 @@ func (m *ModuleItem) ToHCL(providerSchemas *tfjson.ProviderSchemas) hclwrite.Tok
 
 		// Separate indexed and non-indexed changes
 		var nonIndexed []DriftChange
-		indexedGroups := make(map[string][]DriftChange) // keyed by "type.name"
+		indexedGroups := make(map[string]*IndexedDriftChange) // keyed by "type.name"
 
 		for _, change := range m.Changes {
 			if change.IsIndexed() {
-				indexedGroups[change.resourceKey()] = append(indexedGroups[change.resourceKey()], change)
+				resourceKey := change.resourceKey()
+				if _, ok := indexedGroups[resourceKey]; !ok {
+					indexedGroups[resourceKey] = &IndexedDriftChange{
+						ResourceKey:  resourceKey,
+						ResourceType: change.ResourceType,
+						ProviderName: change.ProviderName,
+						Changes:      make([]DriftChange, 0),
+					}
+				}
+				indexedGroups[resourceKey].Changes = append(indexedGroups[resourceKey].Changes, change)
 			} else {
 				nonIndexed = append(nonIndexed, change)
 			}
@@ -90,22 +100,17 @@ func (m *ModuleItem) ToHCL(providerSchemas *tfjson.ProviderSchemas) hclwrite.Tok
 		}
 
 		// Render indexed groups using lookup()
-		var sortedKeys []string
-		for key := range indexedGroups {
-			sortedKeys = append(sortedKeys, key)
-		}
-		sort.Strings(sortedKeys)
-		for _, key := range sortedKeys {
+		for _, key := range utils.SortedKeys(indexedGroups) {
 			group := indexedGroups[key]
-			schema := lookupResourceSchema(providerSchemas, group[0].ProviderName, group[0].ResourceType)
-			block := IndexedChangesToBlock(group, schema)
+			schema := lookupResourceSchema(providerSchemas, group.ProviderName, group.ResourceType)
+			block := group.ToBlock(schema)
 			if block == nil {
 				continue
 			}
 
 			// Build comment listing all addresses
 			var addresses []string
-			for _, change := range group {
+			for _, change := range group.Changes {
 				addresses = append(addresses, change.Address)
 			}
 			overrideBody.AppendUnstructuredTokens(hclwrite.Tokens{
@@ -117,13 +122,7 @@ func (m *ModuleItem) ToHCL(providerSchemas *tfjson.ProviderSchemas) hclwrite.Tok
 	}
 
 	if len(m.Children) > 0 {
-		var childNames []string
-		for name := range m.Children {
-			childNames = append(childNames, name)
-		}
-		sort.Strings(childNames)
-
-		for _, childName := range childNames {
+		for _, childName := range utils.SortedKeys(m.Children) {
 			child := m.Children[childName]
 			modBlock := rootBody.AppendNewBlock("module", []string{child.Name})
 			modBody := modBlock.Body()

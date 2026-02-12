@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/ms-henglu/graft/internal/log"
 	"github.com/ms-henglu/graft/internal/manifest"
+	"github.com/ms-henglu/graft/internal/utils"
 	"github.com/otiai10/copy"
 )
 
@@ -54,12 +54,7 @@ func VendorModules(projectDir string, m *manifest.Manifest) (map[string]string, 
 		log.Warn(fmt.Sprintf("Failed to load modules.json: %v", err))
 	}
 
-	// Sort keys for deterministic output
-	var modKeys []string
-	for k := range m.PatchedModules {
-		modKeys = append(modKeys, k)
-	}
-	sort.Strings(modKeys)
+	modKeys := utils.SortedKeys(m.PatchedModules)
 
 	cacheStatus := make(map[string]bool)
 	terraformModuleMap := make(map[string]Module)

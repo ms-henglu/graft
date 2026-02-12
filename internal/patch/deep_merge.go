@@ -3,6 +3,7 @@ package patch
 import (
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/ms-henglu/graft/internal/hcl"
+	"github.com/ms-henglu/graft/internal/utils"
 )
 
 // metaArgumentBlocks are block types that have special override behavior in Terraform.
@@ -40,7 +41,7 @@ func deepMergeNestedBlock(sourceBlock, overrideBlock *hclwrite.Block, isRootLeve
 	if sourceBlock.Type() == "dynamic" {
 		// Copy dynamic block header attributes in sorted order
 		attrs := sourceBlock.Body().Attributes()
-		for _, name := range hcl.SortedAttributeNames(sourceBlock.Body()) {
+		for _, name := range utils.SortedKeys(attrs) {
 			result.Body().SetAttributeRaw(name, attrs[name].Expr().BuildTokens(nil))
 		}
 		// Copy iterator block if present
@@ -62,20 +63,20 @@ func deepMergeNestedBlock(sourceBlock, overrideBlock *hclwrite.Block, isRootLeve
 	if !isRootLevel && fromBlock != nil {
 		// Copy all attributes from source in sorted order
 		attrs := fromBlock.Body().Attributes()
-		for _, name := range hcl.SortedAttributeNames(fromBlock.Body()) {
+		for _, name := range utils.SortedKeys(attrs) {
 			toBlock.Body().SetAttributeRaw(name, attrs[name].Expr().BuildTokens(nil))
 		}
 	}
 
 	// Override with attributes from override in sorted order
 	overrideAttrs := overrideBlock.Body().Attributes()
-	for _, name := range hcl.SortedAttributeNames(overrideBlock.Body()) {
+	for _, name := range utils.SortedKeys(overrideAttrs) {
 		toBlock.Body().SetAttributeRaw(name, overrideAttrs[name].Expr().BuildTokens(nil))
 	}
 
 	// Get all nested block types from the override
 	// Process each nested block type in sorted order for deterministic output
-	for _, blockType := range hcl.SortedBlockTypes(overrideBlock.Body()) {
+	for _, blockType := range utils.SortedKeys(hcl.ListBlockTypes(overrideBlock.Body())) {
 		overrideNestedBlocks := hcl.BlocksByType(overrideBlock.Body(), blockType)
 
 		// Skip meta-argument blocks - Terraform handles these specially

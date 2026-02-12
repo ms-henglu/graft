@@ -982,130 +982,6 @@ func TestToBlockWithBeforeAttrs(t *testing.T) {
 	}
 }
 
-func TestInterfaceToCtyValueConversions(t *testing.T) {
-	tests := []struct {
-		name     string
-		input    interface{}
-		expected cty.Value
-	}{
-		{
-			name:     "nil",
-			input:    nil,
-			expected: cty.NullVal(cty.DynamicPseudoType),
-		},
-		{
-			name:     "bool true",
-			input:    true,
-			expected: cty.True,
-		},
-		{
-			name:     "bool false",
-			input:    false,
-			expected: cty.False,
-		},
-		{
-			name:     "integer",
-			input:    float64(42),
-			expected: cty.NumberIntVal(42),
-		},
-		{
-			name:     "zero",
-			input:    float64(0),
-			expected: cty.NumberIntVal(0),
-		},
-		{
-			name:     "negative integer",
-			input:    float64(-5),
-			expected: cty.NumberIntVal(-5),
-		},
-		{
-			name:     "float",
-			input:    3.14,
-			expected: cty.NumberFloatVal(3.14),
-		},
-		{
-			name:     "string",
-			input:    "hello",
-			expected: cty.StringVal("hello"),
-		},
-		{
-			name:     "empty string",
-			input:    "",
-			expected: cty.StringVal(""),
-		},
-		{
-			name:     "empty slice",
-			input:    []interface{}{},
-			expected: cty.ListValEmpty(cty.DynamicPseudoType),
-		},
-		{
-			name:  "slice of strings",
-			input: []interface{}{"a", "b", "c"},
-			expected: cty.TupleVal([]cty.Value{
-				cty.StringVal("a"),
-				cty.StringVal("b"),
-				cty.StringVal("c"),
-			}),
-		},
-		{
-			name:  "mixed slice",
-			input: []interface{}{"text", float64(1), true},
-			expected: cty.TupleVal([]cty.Value{
-				cty.StringVal("text"),
-				cty.NumberIntVal(1),
-				cty.True,
-			}),
-		},
-		{
-			name:  "slice with nil",
-			input: []interface{}{"a", nil, "c"},
-			expected: cty.TupleVal([]cty.Value{
-				cty.StringVal("a"),
-				cty.NullVal(cty.DynamicPseudoType),
-				cty.StringVal("c"),
-			}),
-		},
-		{
-			name:     "empty map",
-			input:    map[string]interface{}{},
-			expected: cty.MapValEmpty(cty.DynamicPseudoType),
-		},
-		{
-			name: "map",
-			input: map[string]interface{}{
-				"name": "test",
-				"port": float64(8080),
-			},
-			expected: cty.ObjectVal(map[string]cty.Value{
-				"name": cty.StringVal("test"),
-				"port": cty.NumberIntVal(8080),
-			}),
-		},
-		{
-			name: "nested map",
-			input: map[string]interface{}{
-				"outer": map[string]interface{}{
-					"inner": "deep",
-				},
-			},
-			expected: cty.ObjectVal(map[string]cty.Value{
-				"outer": cty.ObjectVal(map[string]cty.Value{
-					"inner": cty.StringVal("deep"),
-				}),
-			}),
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			got := interfaceToCtyValue(tt.input)
-			if !got.RawEquals(tt.expected) {
-				t.Errorf("interfaceToCtyValue(%v) = %#v, want %#v", tt.input, got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1153,11 +1029,11 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 			expected: `resource "azurerm_network_security_group" "nsg" {
   dynamic "security_rule" {
     for_each = lookup({
-      0 = [{
+      "0" = [{
         name     = "rule-a"
         priority = 100
       }]
-      1 = [{
+      "1" = [{
         name     = "rule-b"
         priority = 200
       }]
@@ -1214,11 +1090,11 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 			expected: `resource "azurerm_network_security_group" "nsg" {
   dynamic "security_rule" {
     for_each = lookup({
-      "api" = [{
+      api = [{
         name     = "allow-grpc"
         priority = 300
       }]
-      "web" = [{
+      web = [{
         name     = "allow-http"
         priority = 100
         }, {
@@ -1291,11 +1167,11 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 			expected: `resource "azurerm_linux_virtual_machine" "vm" {
   dynamic "os_disk" {
     for_each = lookup({
-      0 = [{
+      "0" = [{
         caching      = "ReadWrite"
         disk_size_gb = 30
       }]
-      1 = [{
+      "1" = [{
         caching      = "ReadOnly"
         disk_size_gb = 50
       }]
@@ -1354,13 +1230,13 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 			},
 			expected: `resource "azurerm_linux_virtual_machine" "vm" {
   size = lookup({
-    0 = "Standard_DS2_v2"
-    1 = "Standard_DS3_v2"
+    "0" = "Standard_DS2_v2"
+    "1" = "Standard_DS3_v2"
   }, count.index, graft.source)
   dynamic "os_disk" {
     for_each = lookup({
-      0 = [{ caching = "ReadWrite" }]
-      1 = [{ caching = "ReadOnly" }]
+      "0" = [{ caching = "ReadWrite" }]
+      "1" = [{ caching = "ReadOnly" }]
     }, count.index, [])
     content {
       caching = os_disk.value.caching
@@ -1448,14 +1324,14 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 			expected: `resource "azurerm_linux_virtual_machine" "vm" {
   dynamic "os_disk" {
     for_each = lookup({
-      0 = [{
+      "0" = [{
         caching = "ReadWrite"
         diff_disk_settings = [{
           option    = "None"
           placement = "CacheDisk"
         }]
       }]
-      1 = [{
+      "1" = [{
         caching = "ReadOnly"
         diff_disk_settings = [{
           option    = "Local"
@@ -1520,11 +1396,11 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 			expected: `resource "azurerm_network_security_group" "nsg" {
   dynamic "security_rule" {
     for_each = lookup({
-      0 = [{
+      "0" = [{
         name     = "rule-a"
         priority = 100
       }]
-      1 = [{
+      "1" = [{
         name     = "rule-b"
         priority = 200
       }]
@@ -1580,12 +1456,12 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 			},
 			expected: `resource "azurerm_linux_virtual_machine" "vm" {
   size = lookup({
-    0 = "Standard_DS2_v2"
-    1 = "Standard_DS3_v2"
+    "0" = "Standard_DS2_v2"
+    "1" = "Standard_DS3_v2"
   }, count.index, graft.source)
   dynamic "os_disk" {
     for_each = lookup({
-      0 = [{ caching = "ReadWrite" }]
+      "0" = [{ caching = "ReadWrite" }]
     }, count.index, [])
     content {
       caching = os_disk.value.caching
@@ -1705,7 +1581,7 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 			expected: `resource "azurerm_storage_account" "each_block" {
   dynamic "blob_properties" {
     for_each = lookup({
-      "alpha" = [{
+      alpha = [{
         change_feed_enabled           = false
         change_feed_retention_in_days = 0
         container_delete_retention_policy = [{
@@ -1718,7 +1594,7 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
         last_access_time_enabled = false
         versioning_enabled       = true
       }]
-      "beta" = [{
+      beta = [{
         change_feed_enabled           = false
         change_feed_retention_in_days = 0
         container_delete_retention_policy = [{
@@ -1731,7 +1607,7 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
         last_access_time_enabled = false
         versioning_enabled       = true
       }]
-      "gamma" = [{
+      gamma = [{
         change_feed_enabled           = false
         change_feed_retention_in_days = 0
         container_delete_retention_policy = [{
@@ -1775,7 +1651,10 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			block := IndexedChangesToBlock(tt.changes, tt.schema)
+			c := &IndexedDriftChange{
+				Changes: tt.changes,
+			}
+			block := c.ToBlock(tt.schema)
 			if tt.expected == "" {
 				if block != nil {
 					t.Errorf("expected nil block, got non-nil")
