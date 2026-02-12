@@ -1597,6 +1597,180 @@ func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
 }
 `,
 		},
+		{
+			name: "multi-layer nested blocks with for_each",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_storage_account",
+					ResourceName: "each_block",
+					Index:        "alpha",
+					ChangedAttrs: map[string]interface{}{
+						"blob_properties": []interface{}{
+							map[string]interface{}{
+								"change_feed_enabled":           false,
+								"change_feed_retention_in_days": float64(0),
+								"container_delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(3)},
+								},
+								"default_service_version": nil,
+								"delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(7), "permanent_delete_enabled": false},
+								},
+								"last_access_time_enabled": false,
+								"versioning_enabled":       true,
+							},
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_storage_account",
+					ResourceName: "each_block",
+					Index:        "beta",
+					ChangedAttrs: map[string]interface{}{
+						"blob_properties": []interface{}{
+							map[string]interface{}{
+								"change_feed_enabled":           false,
+								"change_feed_retention_in_days": float64(0),
+								"container_delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(15)},
+								},
+								"default_service_version": nil,
+								"delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(7), "permanent_delete_enabled": false},
+								},
+								"last_access_time_enabled": false,
+								"versioning_enabled":       true,
+							},
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_storage_account",
+					ResourceName: "each_block",
+					Index:        "gamma",
+					ChangedAttrs: map[string]interface{}{
+						"blob_properties": []interface{}{
+							map[string]interface{}{
+								"change_feed_enabled":           false,
+								"change_feed_retention_in_days": float64(0),
+								"container_delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(3)},
+								},
+								"default_service_version": nil,
+								"delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(30), "permanent_delete_enabled": false},
+								},
+								"last_access_time_enabled": false,
+								"versioning_enabled":       false,
+							},
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"blob_properties": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"change_feed_enabled":           {Optional: true},
+								"change_feed_retention_in_days": {Optional: true},
+								"default_service_version":       {Optional: true},
+								"last_access_time_enabled":      {Optional: true},
+								"versioning_enabled":            {Optional: true},
+							},
+							NestedBlocks: map[string]*tfjson.SchemaBlockType{
+								"container_delete_retention_policy": {
+									NestingMode: tfjson.SchemaNestingModeList,
+									Block: &tfjson.SchemaBlock{
+										Attributes: map[string]*tfjson.SchemaAttribute{
+											"days": {Optional: true},
+										},
+									},
+								},
+								"delete_retention_policy": {
+									NestingMode: tfjson.SchemaNestingModeList,
+									Block: &tfjson.SchemaBlock{
+										Attributes: map[string]*tfjson.SchemaAttribute{
+											"days":                     {Optional: true},
+											"permanent_delete_enabled": {Optional: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_storage_account" "each_block" {
+  dynamic "blob_properties" {
+    for_each = lookup({
+      "alpha" = [{
+        change_feed_enabled           = false
+        change_feed_retention_in_days = 0
+        container_delete_retention_policy = [{
+          days = 3
+        }]
+        delete_retention_policy = [{
+          days                     = 7
+          permanent_delete_enabled = false
+        }]
+        last_access_time_enabled = false
+        versioning_enabled       = true
+      }]
+      "beta" = [{
+        change_feed_enabled           = false
+        change_feed_retention_in_days = 0
+        container_delete_retention_policy = [{
+          days = 15
+        }]
+        delete_retention_policy = [{
+          days                     = 7
+          permanent_delete_enabled = false
+        }]
+        last_access_time_enabled = false
+        versioning_enabled       = true
+      }]
+      "gamma" = [{
+        change_feed_enabled           = false
+        change_feed_retention_in_days = 0
+        container_delete_retention_policy = [{
+          days = 3
+        }]
+        delete_retention_policy = [{
+          days                     = 30
+          permanent_delete_enabled = false
+        }]
+        last_access_time_enabled = false
+        versioning_enabled       = false
+      }]
+    }, each.key, [])
+    content {
+      change_feed_enabled           = blob_properties.value.change_feed_enabled
+      change_feed_retention_in_days = blob_properties.value.change_feed_retention_in_days
+      dynamic "container_delete_retention_policy" {
+        for_each = try(blob_properties.value.container_delete_retention_policy, [])
+        content {
+          days = container_delete_retention_policy.value.days
+        }
+      }
+      dynamic "delete_retention_policy" {
+        for_each = try(blob_properties.value.delete_retention_policy, [])
+        content {
+          days                     = delete_retention_policy.value.days
+          permanent_delete_enabled = delete_retention_policy.value.permanent_delete_enabled
+        }
+      }
+      last_access_time_enabled = blob_properties.value.last_access_time_enabled
+      versioning_enabled       = blob_properties.value.versioning_enabled
+    }
+  }
+  _graft {
+    remove = ["blob_properties"]
+  }
+}
+`,
+		},
 	}
 
 	for _, tt := range tests {
