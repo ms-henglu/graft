@@ -13,12 +13,12 @@ override {
   # Absorb drift for: azurerm_resource_group.main[0], azurerm_resource_group.main[1]
   resource "azurerm_resource_group" "main" {
     tags = lookup({
-      0 = {
+      "0" = {
         environment = "production"
         owner       = "drifttest"
         project     = "graft"
       }
-      1 = {
+      "1" = {
         environment = "staging"
         owner       = "drifttest"
         project     = "graft"

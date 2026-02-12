@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/ms-henglu/graft/internal/log"
 	"github.com/ms-henglu/graft/internal/manifest"
+	"github.com/ms-henglu/graft/internal/utils"
 )
 
 // ApplyPatches applies overrides to vendored modules
@@ -29,15 +29,8 @@ func ApplyPatches(vendorMap map[string]string, m *manifest.Manifest) error {
 		log.Debug("Root override applied to %s", cwd)
 	}
 
-	// Sort keys for deterministic output
-	var modKeys []string
-	for k := range m.PatchedModules {
-		modKeys = append(modKeys, k)
-	}
-	sort.Strings(modKeys)
-
-	// Apply patched module overrides
-	for _, modKey := range modKeys {
+	// Apply patched module overrides (sorted for deterministic output)
+	for _, modKey := range utils.SortedKeys(m.PatchedModules) {
 		mod := m.PatchedModules[modKey]
 		vendorPath, ok := vendorMap[modKey]
 		if !ok {

@@ -17,18 +17,18 @@ override {
   # Absorb drift for: azurerm_network_security_group.nsg[0], azurerm_network_security_group.nsg[1]
   resource "azurerm_network_security_group" "nsg" {
     tags = lookup({
-      0 = {
+      "0" = {
         environment = "production"
         project     = "graft"
       }
-      1 = {
+      "1" = {
         environment = "staging"
         project     = "graft"
       }
     }, count.index, graft.source)
     dynamic "security_rule" {
       for_each = lookup({
-        0 = [{
+        "0" = [{
           access                     = "Allow"
           destination_address_prefix = "*"
           destination_port_range     = "22"
@@ -49,7 +49,7 @@ override {
           source_address_prefix      = "10.0.0.0/8"
           source_port_range          = "*"
         }]
-        1 = [{
+        "1" = [{
           access                     = "Allow"
           destination_address_prefix = "*"
           destination_port_range     = "80"

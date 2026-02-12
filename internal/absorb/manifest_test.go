@@ -8,6 +8,7 @@ import (
 
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	tfjson "github.com/hashicorp/terraform-json"
+	"github.com/ms-henglu/graft/internal/utils"
 	"github.com/zclconf/go-cty/cty"
 )
 
@@ -760,7 +761,7 @@ func TestInterfaceToCtyValue(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := interfaceToCtyValue(tt.input)
+			result := utils.ToCtyValue(tt.input)
 			if result.IsNull() && tt.input != nil {
 				if tt.name != "nil" && tt.name != "empty slice" && tt.name != "empty map" {
 					t.Errorf("unexpected null value for %v", tt.input)
@@ -1066,10 +1067,10 @@ override {
   # Absorb drift for: azurerm_resource_group.main[0], azurerm_resource_group.main[1]
   resource "azurerm_resource_group" "main" {
     tags = lookup({
-      0 = {
+      "0" = {
         env = "prod"
       }
-      1 = {
+      "1" = {
         env = "staging"
       }
     }, count.index, graft.source)
@@ -1116,8 +1117,8 @@ override {
   # Absorb drift for: azurerm_resource_group.main["web"], azurerm_resource_group.main["api"]
   resource "azurerm_resource_group" "main" {
     location = lookup({
-      "api" = "westus"
-      "web" = "eastus"
+      api = "westus"
+      web = "eastus"
     }, each.key, graft.source)
   }
 
@@ -1162,10 +1163,10 @@ override {
   # Absorb drift for: azurerm_resource_group.main[0], azurerm_resource_group.main[1]
   resource "azurerm_resource_group" "main" {
     tags = lookup({
-      0 = {
+      "0" = {
         env = "prod"
       }
-      1 = {
+      "1" = {
         env = "prod"
       }
     }, count.index, graft.source)
@@ -1218,7 +1219,7 @@ override {
   # Absorb drift for: azurerm_resource_group.main[0]
   resource "azurerm_resource_group" "main" {
     tags = lookup({
-      0 = {
+      "0" = {
         env = "prod"
       }
     }, count.index, graft.source)
@@ -1268,8 +1269,8 @@ module "network" {
     # Absorb drift for: module.network.azurerm_subnet.main["web"], module.network.azurerm_subnet.main["api"]
     resource "azurerm_subnet" "main" {
       address_prefixes = lookup({
-        "api" = ["10.0.2.0/24"]
-        "web" = ["10.0.1.0/24"]
+        api = ["10.0.2.0/24"]
+        web = ["10.0.1.0/24"]
       }, each.key, graft.source)
     }
 
@@ -1301,7 +1302,10 @@ func TestIndexedChangesToBlockPartialDrift(t *testing.T) {
 		},
 	}
 
-	block := IndexedChangesToBlock(changes, nil)
+	c := &IndexedDriftChange{
+		Changes: changes,
+	}
+	block := c.ToBlock(nil)
 	if block == nil {
 		t.Fatal("expected non-nil block")
 	}
@@ -1309,13 +1313,13 @@ func TestIndexedChangesToBlockPartialDrift(t *testing.T) {
 	expectBlock(t, block, `
 resource "azurerm_resource_group" "main" {
   location = lookup({
-    0 = "eastus"
+    "0" = "eastus"
   }, count.index, graft.source)
   tags = lookup({
-    0 = {
+    "0" = {
       env = "prod"
     }
-    1 = {
+    "1" = {
       env = "staging"
     }
   }, count.index, graft.source)
