@@ -129,18 +129,14 @@ Resources using `for_each` (e.g., `azurerm_resource_group.main["web"]`,
 
 ---
 
-## TODO
-
 ### 7. Block Drift for Indexed Resources (Category 2/3)
 
 Category 2 (single nested block) and Category 3 (multiple sibling blocks)
-drift within `count`/`for_each` resources is not yet supported with
-per-instance differentiation.
+drift within `count`/`for_each` resources uses `dynamic` blocks with
+`lookup()` for per-instance differentiation.
 
-**Proposed approach — `dynamic` blocks with `lookup()`:**
-
-For block-type attributes that differ across indexed instances, replace static
-blocks with `dynamic` blocks that select content per-instance:
+For block-type attributes that differ across indexed instances, static
+blocks are replaced with `dynamic` blocks that select content per-instance:
 
 ```hcl
 dynamic "security_rule" {
@@ -155,11 +151,22 @@ dynamic "security_rule" {
 }
 ```
 
-**Open problem:** The `graft.source` fallback cannot be used with `dynamic`
-block `for_each` because the original source has static blocks (not a list
-expression). A different fallback mechanism is needed.
+- A `_graft { remove = ["block_type"] }` directive is added to remove the
+  original static blocks before the dynamic block generates replacements.
+- The fallback value is `[]` (empty list). Instances without block drift
+  for a given block type will produce no dynamic iterations.
+- For single nested blocks (Category 2), the value is wrapped in a
+  single-element array: `[{ ... }]`.
+- For nested blocks within the content, nested `dynamic` blocks with
+  `try(parent.value.nested, [])` are generated recursively.
+- Full (pre-deep-diff) block values are used in the lookup map since
+  dynamic blocks replace the entire block, not just changed attributes.
 
-**Current behavior:** When block drift occurs on indexed resources, blocks from
-the first instance are emitted (lossy). This is a known limitation.
+**Known limitation:** The `graft.source` fallback cannot be used with
+`dynamic` block `for_each` because the original source has static blocks
+(not a list expression). Instances without block drift in the lookup map
+will have their original static blocks removed by `_graft remove`.
+
+✅ Supported. See [Example 15](../../examples/15-absorb-indexed-block-drift).
 
 ---

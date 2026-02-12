@@ -1105,3 +1105,694 @@ func TestInterfaceToCtyValueConversions(t *testing.T) {
 		})
 	}
 }
+
+func TestIndexedChangesToBlockWithBlockDrift(t *testing.T) {
+	tests := []struct {
+		name     string
+		changes  []DriftChange
+		schema   *tfjson.SchemaBlock
+		expected string
+	}{
+		{
+			name: "category 3: multiple sibling blocks with count",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_network_security_group",
+					ResourceName: "nsg",
+					Index:        float64(0),
+					ChangedAttrs: map[string]interface{}{
+						"security_rule": []interface{}{
+							map[string]interface{}{"name": "rule-a", "priority": float64(100)},
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_network_security_group",
+					ResourceName: "nsg",
+					Index:        float64(1),
+					ChangedAttrs: map[string]interface{}{
+						"security_rule": []interface{}{
+							map[string]interface{}{"name": "rule-b", "priority": float64(200)},
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"security_rule": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"name":     {Required: true},
+								"priority": {Required: true},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_network_security_group" "nsg" {
+  dynamic "security_rule" {
+    for_each = lookup({
+      0 = [{
+        name     = "rule-a"
+        priority = 100
+      }]
+      1 = [{
+        name     = "rule-b"
+        priority = 200
+      }]
+    }, count.index, [])
+    content {
+      name     = security_rule.value.name
+      priority = security_rule.value.priority
+    }
+  }
+  _graft {
+    remove = ["security_rule"]
+  }
+}
+`,
+		},
+		{
+			name: "category 3: multiple sibling blocks with for_each",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_network_security_group",
+					ResourceName: "nsg",
+					Index:        "web",
+					ChangedAttrs: map[string]interface{}{
+						"security_rule": []interface{}{
+							map[string]interface{}{"name": "allow-http", "priority": float64(100)},
+							map[string]interface{}{"name": "allow-https", "priority": float64(200)},
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_network_security_group",
+					ResourceName: "nsg",
+					Index:        "api",
+					ChangedAttrs: map[string]interface{}{
+						"security_rule": []interface{}{
+							map[string]interface{}{"name": "allow-grpc", "priority": float64(300)},
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"security_rule": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"name":     {Required: true},
+								"priority": {Required: true},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_network_security_group" "nsg" {
+  dynamic "security_rule" {
+    for_each = lookup({
+      "api" = [{
+        name     = "allow-grpc"
+        priority = 300
+      }]
+      "web" = [{
+        name     = "allow-http"
+        priority = 100
+        }, {
+        name     = "allow-https"
+        priority = 200
+      }]
+    }, each.key, [])
+    content {
+      name     = security_rule.value.name
+      priority = security_rule.value.priority
+    }
+  }
+  _graft {
+    remove = ["security_rule"]
+  }
+}
+`,
+		},
+		{
+			name: "category 2: single nested block with count",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_linux_virtual_machine",
+					ResourceName: "vm",
+					Index:        float64(0),
+					BeforeAttrs: map[string]interface{}{
+						"os_disk": map[string]interface{}{
+							"caching":      "ReadOnly",
+							"disk_size_gb": float64(30),
+						},
+					},
+					ChangedAttrs: map[string]interface{}{
+						"os_disk": map[string]interface{}{
+							"caching":      "ReadWrite",
+							"disk_size_gb": float64(30),
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_linux_virtual_machine",
+					ResourceName: "vm",
+					Index:        float64(1),
+					BeforeAttrs: map[string]interface{}{
+						"os_disk": map[string]interface{}{
+							"caching":      "ReadOnly",
+							"disk_size_gb": float64(30),
+						},
+					},
+					ChangedAttrs: map[string]interface{}{
+						"os_disk": map[string]interface{}{
+							"caching":      "ReadOnly",
+							"disk_size_gb": float64(50),
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching":      {Optional: true},
+								"disk_size_gb": {Optional: true},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_linux_virtual_machine" "vm" {
+  dynamic "os_disk" {
+    for_each = lookup({
+      0 = [{
+        caching      = "ReadWrite"
+        disk_size_gb = 30
+      }]
+      1 = [{
+        caching      = "ReadOnly"
+        disk_size_gb = 50
+      }]
+    }, count.index, [])
+    content {
+      caching      = os_disk.value.caching
+      disk_size_gb = os_disk.value.disk_size_gb
+    }
+  }
+  _graft {
+    remove = ["os_disk"]
+  }
+}
+`,
+		},
+		{
+			name: "mixed: attribute drift + block drift on indexed resources",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_linux_virtual_machine",
+					ResourceName: "vm",
+					Index:        float64(0),
+					ChangedAttrs: map[string]interface{}{
+						"size": "Standard_DS2_v2",
+						"os_disk": map[string]interface{}{
+							"caching": "ReadWrite",
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_linux_virtual_machine",
+					ResourceName: "vm",
+					Index:        float64(1),
+					ChangedAttrs: map[string]interface{}{
+						"size": "Standard_DS3_v2",
+						"os_disk": map[string]interface{}{
+							"caching": "ReadOnly",
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"size": {Optional: true},
+				},
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching": {Optional: true},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_linux_virtual_machine" "vm" {
+  size = lookup({
+    0 = "Standard_DS2_v2"
+    1 = "Standard_DS3_v2"
+  }, count.index, graft.source)
+  dynamic "os_disk" {
+    for_each = lookup({
+      0 = [{ caching = "ReadWrite" }]
+      1 = [{ caching = "ReadOnly" }]
+    }, count.index, [])
+    content {
+      caching = os_disk.value.caching
+    }
+  }
+  _graft {
+    remove = ["os_disk"]
+  }
+}
+`,
+		},
+		{
+			name: "category 2: single block with nested block inside",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_linux_virtual_machine",
+					ResourceName: "vm",
+					Index:        float64(0),
+					BeforeAttrs: map[string]interface{}{
+						"os_disk": map[string]interface{}{
+							"caching": "ReadOnly",
+							"diff_disk_settings": map[string]interface{}{
+								"option":    "Local",
+								"placement": "CacheDisk",
+							},
+						},
+					},
+					ChangedAttrs: map[string]interface{}{
+						"os_disk": map[string]interface{}{
+							"caching": "ReadWrite",
+							"diff_disk_settings": map[string]interface{}{
+								"option":    "None",
+								"placement": "CacheDisk",
+							},
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_linux_virtual_machine",
+					ResourceName: "vm",
+					Index:        float64(1),
+					BeforeAttrs: map[string]interface{}{
+						"os_disk": map[string]interface{}{
+							"caching": "ReadOnly",
+							"diff_disk_settings": map[string]interface{}{
+								"option":    "Local",
+								"placement": "CacheDisk",
+							},
+						},
+					},
+					ChangedAttrs: map[string]interface{}{
+						"os_disk": map[string]interface{}{
+							"caching": "ReadOnly",
+							"diff_disk_settings": map[string]interface{}{
+								"option":    "Local",
+								"placement": "ResourceDisk",
+							},
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching": {Optional: true},
+							},
+							NestedBlocks: map[string]*tfjson.SchemaBlockType{
+								"diff_disk_settings": {
+									NestingMode: tfjson.SchemaNestingModeList,
+									Block: &tfjson.SchemaBlock{
+										Attributes: map[string]*tfjson.SchemaAttribute{
+											"option":    {Required: true},
+											"placement": {Optional: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_linux_virtual_machine" "vm" {
+  dynamic "os_disk" {
+    for_each = lookup({
+      0 = [{
+        caching = "ReadWrite"
+        diff_disk_settings = [{
+          option    = "None"
+          placement = "CacheDisk"
+        }]
+      }]
+      1 = [{
+        caching = "ReadOnly"
+        diff_disk_settings = [{
+          option    = "Local"
+          placement = "ResourceDisk"
+        }]
+      }]
+    }, count.index, [])
+    content {
+      caching = os_disk.value.caching
+      dynamic "diff_disk_settings" {
+        for_each = try(os_disk.value.diff_disk_settings, [])
+        content {
+          option    = diff_disk_settings.value.option
+          placement = diff_disk_settings.value.placement
+        }
+      }
+    }
+  }
+  _graft {
+    remove = ["os_disk"]
+  }
+}
+`,
+		},
+		{
+			name: "block drift filters computed-only attributes",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_network_security_group",
+					ResourceName: "nsg",
+					Index:        float64(0),
+					ChangedAttrs: map[string]interface{}{
+						"security_rule": []interface{}{
+							map[string]interface{}{"name": "rule-a", "priority": float64(100), "id": "/computed/id/0"},
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_network_security_group",
+					ResourceName: "nsg",
+					Index:        float64(1),
+					ChangedAttrs: map[string]interface{}{
+						"security_rule": []interface{}{
+							map[string]interface{}{"name": "rule-b", "priority": float64(200), "id": "/computed/id/1"},
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"security_rule": {
+						AttributeType: cty.Set(cty.Object(map[string]cty.Type{
+							"name":     cty.String,
+							"priority": cty.Number,
+							"id":       cty.String,
+						})),
+						Optional: true,
+						Computed: true,
+					},
+				},
+			},
+			expected: `resource "azurerm_network_security_group" "nsg" {
+  dynamic "security_rule" {
+    for_each = lookup({
+      0 = [{
+        name     = "rule-a"
+        priority = 100
+      }]
+      1 = [{
+        name     = "rule-b"
+        priority = 200
+      }]
+    }, count.index, [])
+    content {
+      name     = security_rule.value.name
+      priority = security_rule.value.priority
+    }
+  }
+  _graft {
+    remove = ["security_rule"]
+  }
+}
+`,
+		},
+		{
+			name: "partial block drift — only some instances have block changes",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_linux_virtual_machine",
+					ResourceName: "vm",
+					Index:        float64(0),
+					ChangedAttrs: map[string]interface{}{
+						"size": "Standard_DS2_v2",
+						"os_disk": map[string]interface{}{
+							"caching": "ReadWrite",
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_linux_virtual_machine",
+					ResourceName: "vm",
+					Index:        float64(1),
+					ChangedAttrs: map[string]interface{}{
+						"size": "Standard_DS3_v2",
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				Attributes: map[string]*tfjson.SchemaAttribute{
+					"size": {Optional: true},
+				},
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"os_disk": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"caching": {Optional: true},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_linux_virtual_machine" "vm" {
+  size = lookup({
+    0 = "Standard_DS2_v2"
+    1 = "Standard_DS3_v2"
+  }, count.index, graft.source)
+  dynamic "os_disk" {
+    for_each = lookup({
+      0 = [{ caching = "ReadWrite" }]
+    }, count.index, [])
+    content {
+      caching = os_disk.value.caching
+    }
+  }
+  _graft {
+    remove = ["os_disk"]
+  }
+}
+`,
+		},
+		{
+			name: "multi-layer nested blocks with for_each",
+			changes: []DriftChange{
+				{
+					ResourceType: "azurerm_storage_account",
+					ResourceName: "each_block",
+					Index:        "alpha",
+					ChangedAttrs: map[string]interface{}{
+						"blob_properties": []interface{}{
+							map[string]interface{}{
+								"change_feed_enabled":           false,
+								"change_feed_retention_in_days": float64(0),
+								"container_delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(3)},
+								},
+								"default_service_version": nil,
+								"delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(7), "permanent_delete_enabled": false},
+								},
+								"last_access_time_enabled": false,
+								"versioning_enabled":       true,
+							},
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_storage_account",
+					ResourceName: "each_block",
+					Index:        "beta",
+					ChangedAttrs: map[string]interface{}{
+						"blob_properties": []interface{}{
+							map[string]interface{}{
+								"change_feed_enabled":           false,
+								"change_feed_retention_in_days": float64(0),
+								"container_delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(15)},
+								},
+								"default_service_version": nil,
+								"delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(7), "permanent_delete_enabled": false},
+								},
+								"last_access_time_enabled": false,
+								"versioning_enabled":       true,
+							},
+						},
+					},
+				},
+				{
+					ResourceType: "azurerm_storage_account",
+					ResourceName: "each_block",
+					Index:        "gamma",
+					ChangedAttrs: map[string]interface{}{
+						"blob_properties": []interface{}{
+							map[string]interface{}{
+								"change_feed_enabled":           false,
+								"change_feed_retention_in_days": float64(0),
+								"container_delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(3)},
+								},
+								"default_service_version": nil,
+								"delete_retention_policy": []interface{}{
+									map[string]interface{}{"days": float64(30), "permanent_delete_enabled": false},
+								},
+								"last_access_time_enabled": false,
+								"versioning_enabled":       false,
+							},
+						},
+					},
+				},
+			},
+			schema: &tfjson.SchemaBlock{
+				NestedBlocks: map[string]*tfjson.SchemaBlockType{
+					"blob_properties": {
+						NestingMode: tfjson.SchemaNestingModeList,
+						Block: &tfjson.SchemaBlock{
+							Attributes: map[string]*tfjson.SchemaAttribute{
+								"change_feed_enabled":           {Optional: true},
+								"change_feed_retention_in_days": {Optional: true},
+								"default_service_version":       {Optional: true},
+								"last_access_time_enabled":      {Optional: true},
+								"versioning_enabled":            {Optional: true},
+							},
+							NestedBlocks: map[string]*tfjson.SchemaBlockType{
+								"container_delete_retention_policy": {
+									NestingMode: tfjson.SchemaNestingModeList,
+									Block: &tfjson.SchemaBlock{
+										Attributes: map[string]*tfjson.SchemaAttribute{
+											"days": {Optional: true},
+										},
+									},
+								},
+								"delete_retention_policy": {
+									NestingMode: tfjson.SchemaNestingModeList,
+									Block: &tfjson.SchemaBlock{
+										Attributes: map[string]*tfjson.SchemaAttribute{
+											"days":                     {Optional: true},
+											"permanent_delete_enabled": {Optional: true},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			expected: `resource "azurerm_storage_account" "each_block" {
+  dynamic "blob_properties" {
+    for_each = lookup({
+      "alpha" = [{
+        change_feed_enabled           = false
+        change_feed_retention_in_days = 0
+        container_delete_retention_policy = [{
+          days = 3
+        }]
+        delete_retention_policy = [{
+          days                     = 7
+          permanent_delete_enabled = false
+        }]
+        last_access_time_enabled = false
+        versioning_enabled       = true
+      }]
+      "beta" = [{
+        change_feed_enabled           = false
+        change_feed_retention_in_days = 0
+        container_delete_retention_policy = [{
+          days = 15
+        }]
+        delete_retention_policy = [{
+          days                     = 7
+          permanent_delete_enabled = false
+        }]
+        last_access_time_enabled = false
+        versioning_enabled       = true
+      }]
+      "gamma" = [{
+        change_feed_enabled           = false
+        change_feed_retention_in_days = 0
+        container_delete_retention_policy = [{
+          days = 3
+        }]
+        delete_retention_policy = [{
+          days                     = 30
+          permanent_delete_enabled = false
+        }]
+        last_access_time_enabled = false
+        versioning_enabled       = false
+      }]
+    }, each.key, [])
+    content {
+      change_feed_enabled           = blob_properties.value.change_feed_enabled
+      change_feed_retention_in_days = blob_properties.value.change_feed_retention_in_days
+      dynamic "container_delete_retention_policy" {
+        for_each = try(blob_properties.value.container_delete_retention_policy, [])
+        content {
+          days = container_delete_retention_policy.value.days
+        }
+      }
+      dynamic "delete_retention_policy" {
+        for_each = try(blob_properties.value.delete_retention_policy, [])
+        content {
+          days                     = delete_retention_policy.value.days
+          permanent_delete_enabled = delete_retention_policy.value.permanent_delete_enabled
+        }
+      }
+      last_access_time_enabled = blob_properties.value.last_access_time_enabled
+      versioning_enabled       = blob_properties.value.versioning_enabled
+    }
+  }
+  _graft {
+    remove = ["blob_properties"]
+  }
+}
+`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			block := IndexedChangesToBlock(tt.changes, tt.schema)
+			if tt.expected == "" {
+				if block != nil {
+					t.Errorf("expected nil block, got non-nil")
+				}
+				return
+			}
+			if block == nil {
+				t.Fatal("expected non-nil block, got nil")
+			}
+
+			f := hclwrite.NewEmptyFile()
+			f.Body().AppendBlock(block)
+			result := string(hclwrite.Format(f.Bytes()))
+
+			if normalizeWhitespace(result) != normalizeWhitespace(tt.expected) {
+				t.Errorf("unexpected output:\n got:\n%s\nwant:\n%s", result, tt.expected)
+			}
+		})
+	}
+}
