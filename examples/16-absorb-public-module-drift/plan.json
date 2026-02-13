@@ -1,0 +1,146 @@
+{
+  "format_version": "1.2",
+  "terraform_version": "1.14.0",
+  "resource_changes": [
+    {
+      "address": "azurerm_resource_group.example",
+      "mode": "managed",
+      "type": "azurerm_resource_group",
+      "name": "example",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": [
+          "update"
+        ],
+        "before": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-module-rg",
+          "location": "eastus",
+          "managed_by": "",
+          "name": "graft-absorb-module-rg",
+          "tags": {
+            "Creator": "admin@contoso.com",
+            "DateCreated": "2026-01-15T09:22:31Z",
+            "environment": "production",
+            "owner": "platform-team",
+            "project": "graft"
+          },
+          "timeouts": null
+        },
+        "after": {
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-module-rg",
+          "location": "eastus",
+          "managed_by": "",
+          "name": "graft-absorb-module-rg",
+          "tags": {
+            "environment": "dev",
+            "project": "graft"
+          },
+          "timeouts": null
+        },
+        "after_unknown": {},
+        "before_sensitive": {
+          "tags": {}
+        },
+        "after_sensitive": {
+          "tags": {}
+        }
+      }
+    },
+    {
+      "address": "module.network.azurerm_virtual_network.vnet",
+      "module_address": "module.network",
+      "mode": "managed",
+      "type": "azurerm_virtual_network",
+      "name": "vnet",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": [
+          "update"
+        ],
+        "before": {
+          "address_space": ["10.0.0.0/16"],
+          "dns_servers": [],
+          "flow_timeout_in_minutes": 0,
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-module-rg/providers/Microsoft.Network/virtualNetworks/graft-example-vnet",
+          "location": "eastus",
+          "name": "graft-example-vnet",
+          "resource_group_name": "graft-absorb-module-rg",
+          "tags": {
+            "environment": "production",
+            "managed_by": "terraform",
+            "owner": "platform-team"
+          },
+          "timeouts": null
+        },
+        "after": {
+          "address_space": ["10.0.0.0/16"],
+          "dns_servers": [],
+          "flow_timeout_in_minutes": 0,
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-module-rg/providers/Microsoft.Network/virtualNetworks/graft-example-vnet",
+          "location": "eastus",
+          "name": "graft-example-vnet",
+          "resource_group_name": "graft-absorb-module-rg",
+          "tags": {
+            "environment": "dev",
+            "managed_by": "terraform"
+          },
+          "timeouts": null
+        },
+        "after_unknown": {},
+        "before_sensitive": {
+          "address_space": [],
+          "dns_servers": [],
+          "tags": {}
+        },
+        "after_sensitive": {
+          "address_space": [],
+          "dns_servers": [],
+          "tags": {}
+        }
+      }
+    },
+    {
+      "address": "module.network.azurerm_subnet.subnet_for_each[\"web-subnet\"]",
+      "module_address": "module.network",
+      "mode": "managed",
+      "type": "azurerm_subnet",
+      "name": "subnet_for_each",
+      "index": "web-subnet",
+      "provider_name": "registry.terraform.io/hashicorp/azurerm",
+      "change": {
+        "actions": [
+          "update"
+        ],
+        "before": {
+          "address_prefixes": ["10.0.1.0/24"],
+          "default_outbound_access_enabled": false,
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-module-rg/providers/Microsoft.Network/virtualNetworks/graft-example-vnet/subnets/web-subnet",
+          "name": "web-subnet",
+          "resource_group_name": "graft-absorb-module-rg",
+          "service_endpoints": ["Microsoft.Web"],
+          "virtual_network_name": "graft-example-vnet",
+          "timeouts": null
+        },
+        "after": {
+          "address_prefixes": ["10.0.1.0/24"],
+          "default_outbound_access_enabled": true,
+          "id": "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/graft-absorb-module-rg/providers/Microsoft.Network/virtualNetworks/graft-example-vnet/subnets/web-subnet",
+          "name": "web-subnet",
+          "resource_group_name": "graft-absorb-module-rg",
+          "service_endpoints": [],
+          "virtual_network_name": "graft-example-vnet",
+          "timeouts": null
+        },
+        "after_unknown": {},
+        "before_sensitive": {
+          "address_prefixes": [],
+          "service_endpoints": []
+        },
+        "after_sensitive": {
+          "address_prefixes": [],
+          "service_endpoints": []
+        }
+      }
+    }
+  ]
+}
