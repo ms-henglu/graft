@@ -1,8 +1,8 @@
 # Graft: The Overlay Engine for Terraform
 
-Graft is a CLI tool that brings the Overlay Pattern (similar to Kustomize) to Terraform. It acts as a JIT (Just-In-Time) Compiler, allowing you to apply declarative patches to third-party modules at build time.
+Graft is a CLI tool that lets you customize any Terraform module — override values, inject resources, remove blocks, and absorb drift — allowing you to apply declarative patches to third-party modules at build time.
 
-With Graft, you can treat upstream modules (e.g., from the Public Registry) as immutable base layers and inject your own logic on top—without the maintenance nightmare of forking.
+No forking required. Your `main.tf` keeps pointing to the upstream registry module; Graft applies your changes on top at build time.
 
 ## What Can Graft Do?
 
@@ -17,6 +17,9 @@ Graft allows you to surgically modify any Terraform module, even if you don't ow
 * **Remove Attributes & Resources**
   Delete unwanted resources or blocks from upstream modules—something native Terraform overrides cannot do.
   > Example: Remove a default `azurerm_network_security_rule` that violates your company policy.
+* **Absorb External Drift**
+  Automatically generate override manifests from Terraform plan drift, so external changes (Azure Policy, manual edits) become part of the config.
+  > Example: Azure Policy added `Creator` and `DateCreated` tags to your resources. Run `graft absorb plan.json` to accept them.
 * **Zero-Fork Maintenance**
   Keep your `main.tf` pointing to the official upstream version (e.g., v5.0.0). When upstream updates, you just bump the version; your patches are re-applied automatically.
 
@@ -66,6 +69,11 @@ Check out the [examples](./examples) directory for practical scenarios:
 *   [Nested Block Override](./examples/11-multi-block-resource)
 *   [Absorb Tag Drift](./examples/12-absorb-tag-drift)
 *   [Absorb Security Rule Drift](./examples/13-absorb-security-rule-drift)
+*   [Absorb Indexed Resource Drift](./examples/14-absorb-indexed-drift)
+*   [Absorb Indexed Block Drift](./examples/15-absorb-indexed-block-drift)
+*   [Absorb Public Module Drift](./examples/16-absorb-public-module-drift)
+
+For a detailed step-by-step guide on the `absorb` command, see [How to Use `graft absorb`](./docs/absorb-guide.md).
 
 ---
 
